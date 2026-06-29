@@ -1911,7 +1911,7 @@ export default function App() {
         activePage !== "login" &&
         activePage !== "register" &&
         activePage !== "login-google-otp" &&
-        activePage !== "live-class-tutor" && <Footer />}
+        activePage !== "live-class-tutor" && <Footer navigate={navigate} />}
 
       {/* ============ MOBILE BOTTOM NAV ============ */}
       {showNav && (

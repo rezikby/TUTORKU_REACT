@@ -1,8 +1,11 @@
 // frontend/src/app/components/ui/Footer.tsx
-import { GraduationCap, Heart } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-export default function Footer() {
+type FooterProps = {
+  navigate: (page: string) => void;
+};
+
+export default function Footer({ navigate }: FooterProps) {
   const { t } = useTranslation();
 
   return (
@@ -81,22 +84,47 @@ export default function Footer() {
   </div>
 </div>
 
-        {/* Kolom 2 - Product */}
+        {/* Kolom 2 - Produk */}
         <div>
           <div className="text-xs xs:text-sm font-semibold text-white mb-2 xs:mb-3">{t("footer.product")}</div>
           <ul className="space-y-1 xs:space-y-2">
-            <li className="hover:text-white/70 cursor-pointer text-white/80">{t("footer.searchTutor")}</li>
-            <li className="hover:text-white/70 cursor-pointer text-white/80">{t("footer.becomeTutor")}</li>
-            <li className="hover:text-white/70 cursor-pointer text-white/80">{t("footer.liveClass")}</li>
-            <li className="hover:text-white/70 cursor-pointer text-white/80">{t("footer.community")}</li>
+            <li
+              onClick={() => navigate("cari-tutor")}
+              className="hover:text-white/70 cursor-pointer text-white/80"
+            >
+              {t("footer.searchTutor")}
+            </li>
+            <li
+              onClick={() => navigate("tutor-registration")}
+              className="hover:text-white/70 cursor-pointer text-white/80"
+            >
+              {t("footer.becomeTutor")}
+            </li>
+            <li
+              onClick={() => navigate("live-class")}
+              className="hover:text-white/70 cursor-pointer text-white/80"
+            >
+              {t("footer.liveClass")}
+            </li>
+            <li
+              onClick={() => navigate("forum")}
+              className="hover:text-white/70 cursor-pointer text-white/80"
+            >
+              {t("footer.community")}
+            </li>
           </ul>
         </div>
 
-        {/* Kolom 3 - Company */}
+        {/* Kolom 3 - Komunitas */}
         <div>
           <div className="text-xs xs:text-sm font-semibold text-white mb-2 xs:mb-3">{t("footer.company")}</div>
           <ul className="space-y-1 xs:space-y-2">
-            <li className="hover:text-white/70 cursor-pointer text-white/80">{t("footer.aboutUs")}</li>
+            <li
+              onClick={() => navigate("about")}
+              className="hover:text-white/70 cursor-pointer text-white/80"
+            >
+              {t("footer.aboutUs")}
+            </li>
             <li className="hover:text-white/70 cursor-pointer text-white/80">{t("footer.blog")}</li>
             <li className="hover:text-white/70 cursor-pointer text-white/80">{t("footer.careers")}</li>
             <li className="hover:text-white/70 cursor-pointer text-white/80">{t("footer.press")}</li>

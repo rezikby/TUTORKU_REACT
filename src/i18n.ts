@@ -1074,8 +1074,8 @@ const resources = {
       },
       footer: {
         brand: "Belajar Lebih Mudah Bersama Tutor Terbaik",
-        product: "Product",
-        company: "Company",
+        product: "Produk",
+        company: "Komunitas",
         support: "Support",
         searchTutor: "Cari Tutor",
         becomeTutor: "Jadi Tutor",
