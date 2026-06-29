@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2, ArrowRight, AlertCircle, Shield } from "lucide-react";
+import { Loader2, ArrowRight, AlertCircle, Shield, CheckCircle } from "lucide-react";
 
 type LoginResult = {
   success: boolean;
@@ -8,6 +8,8 @@ type LoginResult = {
   phone?: string;
   message?: string;
   role?: string;
+  token?: string;
+  user?: any;
 };
 
 interface RegisterOtpPageProps {
@@ -15,8 +17,16 @@ interface RegisterOtpPageProps {
   name: string;
   navigate: (page: string) => void;
   verifyPhoneOtp: (phone: string, otp: string) => Promise<LoginResult>;
-  registerWithPhone: (phone: string, name: string) => Promise<boolean>;
-  sendPhoneOtp: (phone: string) => Promise<boolean>;
+  registerWithPhone: (phone: string, name: string) => Promise<{
+    success: boolean;
+    token?: string;
+    role?: string;
+    message?: string;
+  }>;
+  sendPhoneOtp: (phone: string) => Promise<{
+    success: boolean;
+    message?: string;
+  }>;
   otpCooldown: number;
   loading: boolean;
   error: string | null;
@@ -39,6 +49,8 @@ export default function RegisterOtpPage({
   const [countdown, setCountdown] = useState(0);
   const [otpError, setOtpError] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
   const { t } = useTranslation();
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -56,6 +68,13 @@ export default function RegisterOtpPage({
     if (otpError) setOtpError(null);
   }, [otp]);
 
+  // Auto-focus first input on mount
+  useEffect(() => {
+    if (inputRefs.current[0]) {
+      inputRefs.current[0].focus();
+    }
+  }, []);
+
   const handleChange = (index: number, value: string) => {
     if (value.length > 1) return;
     
@@ -72,6 +91,12 @@ export default function RegisterOtpPage({
   const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Backspace" && !otp[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
+    }
+    
+    // Submit on Enter
+    if (e.key === "Enter" && otp.join("").length === 5) {
+      e.preventDefault();
+      handleVerifyOtp(e as any);
     }
   };
 
@@ -105,22 +130,49 @@ export default function RegisterOtpPage({
     }
 
     setIsVerifying(true);
+    setOtpError(null);
+    
     try {
+      // Step 1: Verify OTP
       const verified = await verifyPhoneOtp(phone, otpString);
+      
       if (!verified.success) {
         setOtpError(verified.message || t("auth.verifyFailed"));
         setIsVerifying(false);
         return;
       }
 
-      const registered = await registerWithPhone(phone, name);
-      if (registered) {
-        const token = localStorage.getItem("TUTORKU_token");
-        if (token) {
+      // Step 2: Register user
+      const registrationResult = await registerWithPhone(phone, name);
+      
+      if (!registrationResult.success) {
+        setOtpError(registrationResult.message || t("auth.registerFailed"));
+        setIsVerifying(false);
+        return;
+      }
+
+      // Step 3: Save token and redirect
+      const token = registrationResult.token || localStorage.getItem("TUTORKU_token");
+      
+      if (token) {
+        // Save token if not already saved
+        if (!localStorage.getItem("TUTORKU_token")) {
+          localStorage.setItem("TUTORKU_token", token);
+        }
+        
+        // Navigate berdasarkan role
+        const role = registrationResult.role || "siswa";
+        if (role === "tutor") {
+          navigate("dashboard-tutor");
+        } else {
           navigate("dashboard-siswa");
         }
+      } else {
+        setOtpError("Token tidak ditemukan. Silakan login ulang.");
+        setIsVerifying(false);
       }
     } catch (err: any) {
+      console.error("Verification error:", err);
       setOtpError(err.message || t("auth.verifyFailed"));
     } finally {
       setIsVerifying(false);
@@ -128,18 +180,38 @@ export default function RegisterOtpPage({
   };
 
   const handleResendOtp = async () => {
-    if (countdown > 0) return;
-    const success = await sendPhoneOtp(phone);
-    if (success) {
-      setCountdown(60);
-      setOtpError(null);
-      setOtp(["", "", "", "", ""]);
-      inputRefs.current[0]?.focus();
+    if (countdown > 0 || isResending) return;
+    
+    setIsResending(true);
+    setResendSuccess(false);
+    setOtpError(null);
+    
+    try {
+      const result = await sendPhoneOtp(phone);
+      
+      if (result.success) {
+        setCountdown(60);
+        setOtp(["", "", "", "", ""]);
+        setResendSuccess(true);
+        inputRefs.current[0]?.focus();
+        
+        // Auto-hide success message after 3 seconds
+        setTimeout(() => {
+          setResendSuccess(false);
+        }, 3000);
+      } else {
+        setOtpError(result.message || "Gagal mengirim ulang OTP");
+      }
+    } catch (err: any) {
+      setOtpError(err.message || "Gagal mengirim ulang OTP");
+    } finally {
+      setIsResending(false);
     }
   };
 
   return (
     <div className="min-h-screen flex bg-white dark:bg-gray-950">
+      {/* Left Side - Branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-[#2563EB] flex-col justify-between p-12 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
@@ -148,7 +220,7 @@ export default function RegisterOtpPage({
         <div className="relative z-10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-              <Shield className="h-5 w-5 text-gray-400" />
+              <Shield className="h-5 w-5 text-white" />
             </div>
             <div>
               <span className="text-2xl font-bold text-white">TUTORKU</span>
@@ -167,18 +239,27 @@ export default function RegisterOtpPage({
         </div>
       </div>
 
+      {/* Right Side - OTP Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center px-4 sm:px-6 py-12">
         <div className="w-full max-w-md">
-          <button onClick={onBack} className="flex items-center gap-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white transition-all mb-6">
+          <button 
+            onClick={onBack} 
+            className="flex items-center gap-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white transition-all mb-6"
+          >
             <ArrowRight size={18} className="rotate-180" />
             <span>{t("auth.back")}</span>
           </button>
 
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t("auth.verifyNumber")}</h1>
-            <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">{t("auth.otpSent")}</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {t("auth.verifyNumber")}
+            </h1>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
+              {t("auth.otpSent")}
+            </p>
           </div>
 
+          {/* Error Messages */}
           {error && (
             <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-500 rounded-lg flex items-center gap-2 text-red-600 dark:text-red-400 text-sm">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -193,9 +274,19 @@ export default function RegisterOtpPage({
             </div>
           )}
 
+          {/* Success Message */}
+          {resendSuccess && (
+            <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-500 rounded-lg flex items-center gap-2 text-green-600 dark:text-green-400 text-sm">
+              <CheckCircle className="w-4 h-4 flex-shrink-0" />
+              <span>Kode OTP baru telah dikirim ke WhatsApp Anda</span>
+            </div>
+          )}
+
           <form onSubmit={handleVerifyOtp} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{t("auth.verifyCode")}</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                {t("auth.verifyCode")}
+              </label>
               <div className="flex gap-3 justify-center">
                 {otp.map((digit, index) => (
                   <input
@@ -206,15 +297,18 @@ export default function RegisterOtpPage({
                     onChange={(e) => handleChange(index, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(index, e)}
                     onPaste={index === 0 ? handlePaste : undefined}
-                    className="w-14 h-14 text-center text-xl font-semibold bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-[#2563EB] focus:border-transparent outline-none transition-all"
+                    className="w-14 h-14 text-center text-xl font-semibold bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-[#2563EB] focus:border-transparent outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     maxLength={1}
                     autoFocus={index === 0}
                     inputMode="numeric"
                     pattern="[0-9]*"
+                    disabled={isVerifying || loading}
                   />
                 ))}
               </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 text-center">{t("auth.sentToPhone", { phone })}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 text-center">
+                {t("auth.sentToPhone", { phone })}
+              </p>
             </div>
 
             <button 
@@ -239,10 +333,19 @@ export default function RegisterOtpPage({
               <button 
                 type="button" 
                 onClick={handleResendOtp} 
-                disabled={countdown > 0 || loading} 
-                className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={countdown > 0 || loading || isResending} 
+                className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                {countdown > 0 ? `${t("auth.resendCode")} (${countdown}s)` : t("auth.resendCode")}
+                {isResending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Mengirim...
+                  </>
+                ) : countdown > 0 ? (
+                  `${t("auth.resendCode")} (${countdown}s)`
+                ) : (
+                  t("auth.resendCode")
+                )}
               </button>
             </div>
           </form>
