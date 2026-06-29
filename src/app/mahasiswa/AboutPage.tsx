@@ -132,82 +132,111 @@ export default function AboutPage({ apiFetch }: AboutPageProps) {
   return (
     <div className="min-h-screen bg-white pt-14 xs:pt-16">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 xs:py-12 pb-24">
-        <div className="max-w-3xl">
-          <p className="text-sm font-semibold text-[#2563EB] uppercase tracking-[0.3em] mb-4">
+        {/* Header Section - Improved */}
+        <div className="max-w-3xl mb-12">
+          <p className="text-sm font-semibold text-blue-600 uppercase tracking-[0.3em] mb-4">
             {t("about.title")}
           </p>
-          <h1 className="text-3xl xs:text-4xl sm:text-5xl font-extrabold text-gray-900 mb-6">
+          <h1 className="text-4xl xs:text-5xl sm:text-6xl font-extrabold text-gray-900 mb-6 leading-tight">
             {t("about.heading")}
           </h1>
-          <p className="text-base xs:text-lg leading-relaxed text-gray-600 mb-8">
+          <p className="text-lg xs:text-xl leading-relaxed text-gray-600">
             {t("about.description")}
           </p>
         </div>
 
-        <div className="grid gap-4 xs:gap-6 lg:grid-cols-3 mt-8 xs:mt-10">
-          {features.map((item) => (
+        {/* Features Grid - Improved */}
+        <div className="grid gap-6 xs:gap-8 lg:grid-cols-3 mt-10">
+          {features.map((item, index) => (
             <div
               key={item.title}
-              className="bg-slate-50 p-5 rounded-3xl border border-slate-200 shadow-sm"
+              className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-200"
             >
-              <p className="text-sm font-semibold text-slate-900 mb-2">{item.title}</p>
-              <p className="text-sm text-slate-600 leading-relaxed">{item.description}</p>
+              <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mb-4">
+                <span className="text-blue-600 font-bold text-lg">{index + 1}</span>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">{item.title}</h3>
+              <p className="text-gray-600 leading-relaxed">{item.description}</p>
             </div>
           ))}
         </div>
 
-        <div className="grid gap-4 xs:gap-6 lg:grid-cols-2 mt-10">
-          <div className="bg-[#EFF6FF] p-6 rounded-3xl border border-blue-100 shadow-sm">
-            <h2 className="text-xl xs:text-2xl font-bold text-[#2563EB] mb-3">{t("about.missionTitle")}</h2>
-            <p className="text-sm text-slate-700 leading-relaxed">
+        {/* Mission & Vision - Improved */}
+        <div className="grid gap-6 xs:gap-8 lg:grid-cols-2 mt-12">
+          <div className="bg-blue-50 p-8 rounded-2xl border border-blue-100 shadow-sm">
+            <h2 className="text-2xl xs:text-3xl font-bold text-blue-600 mb-4">
+              {t("about.missionTitle")}
+            </h2>
+            <p className="text-gray-700 leading-relaxed">
               {t("about.missionDescription")}
             </p>
           </div>
-          <div className="bg-[#EFF6FF] p-6 rounded-3xl border border-blue-100 shadow-sm">
-            <h2 className="text-xl xs:text-2xl font-bold text-[#2563EB] mb-3">{t("about.visionTitle")}</h2>
-            <p className="text-sm text-slate-700 leading-relaxed">
+          <div className="bg-indigo-50 p-8 rounded-2xl border border-indigo-100 shadow-sm">
+            <h2 className="text-2xl xs:text-3xl font-bold text-indigo-600 mb-4">
+              {t("about.visionTitle")}
+            </h2>
+            <p className="text-gray-700 leading-relaxed">
               {t("about.visionDescription")}
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 xs:gap-6 mt-10 pt-6 xs:pt-8 border-t border-slate-200">
+        {/* Stats - Improved */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 xs:gap-6 mt-12 pt-8 border-t border-gray-200">
           {stats.map((item) => (
-            <div key={item.label} className="text-center bg-slate-50 p-4 rounded-3xl border border-slate-200 shadow-sm">
-              <div className="text-2xl xs:text-3xl font-extrabold text-[#2563EB]">{item.value}</div>
-              <div className="text-xs xs:text-sm text-slate-500 mt-1">{item.label}</div>
+            <div 
+              key={item.label} 
+              className="text-center bg-white p-6 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
+            >
+              <div className="text-3xl xs:text-4xl font-extrabold text-blue-600 mb-1">
+                {item.value}
+              </div>
+              <div className="text-sm text-gray-500">{item.label}</div>
             </div>
           ))}
         </div>
 
+        {/* Loading State - Improved */}
         {loading ? (
-          <div className="mt-12 rounded-3xl border border-slate-200 bg-slate-50 p-6 text-slate-700">
-            {t("about.loading")}
+          <div className="mt-12 rounded-2xl border border-gray-200 bg-gray-50 p-8 text-center">
+            <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+            <p className="text-gray-600">{t("about.loading")}</p>
           </div>
         ) : error ? (
-          <div className="mt-12 rounded-3xl border border-rose-200 bg-rose-50 p-6 text-rose-700">
-            {t("about.loadError", { error })}
+          <div className="mt-12 rounded-2xl border border-red-200 bg-red-50 p-8">
+            <div className="flex items-start gap-3">
+              <span className="text-red-500 text-xl">⚠️</span>
+              <div>
+                <p className="font-semibold text-red-700 mb-1">Error</p>
+                <p className="text-red-600">{t("about.loadError", { error })}</p>
+              </div>
+            </div>
           </div>
         ) : (
           <>
-            <div className="mt-14 rounded-3xl border border-slate-200 bg-slate-50 p-8 shadow-sm">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-8">
+            {/* Team Section - Improved */}
+            <div className="mt-14">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-8">
                 <div>
-                  <p className="text-sm uppercase tracking-[0.3em] text-[#2563EB] font-semibold mb-2">
+                  <p className="text-sm font-semibold text-blue-600 uppercase tracking-[0.3em] mb-2">
                     {t("about.teamTitle")}
                   </p>
-                  <h2 className="text-2xl xs:text-3xl font-extrabold text-slate-900">
+                  <h2 className="text-3xl xs:text-4xl font-extrabold text-gray-900">
                     {t("about.teamHeading")}
                   </h2>
                 </div>
-                <p className="max-w-2xl text-sm text-slate-600 leading-relaxed">
+                <p className="max-w-2xl text-gray-600 leading-relaxed">
                   {t("about.teamDescription")}
                 </p>
               </div>
-              <div className="grid gap-4 md:grid-cols-3">
+
+              <div className="grid gap-6 md:grid-cols-3">
                 {teamMembers.map((member) => (
-                  <div key={member.id ?? member.name} className="rounded-3xl bg-white p-5 text-center border border-slate-200 shadow-sm">
-                    <div className="mx-auto mb-4 h-24 w-24 overflow-hidden rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                  <div 
+                    key={member.id ?? member.name} 
+                    className="bg-white p-6 rounded-2xl text-center border border-gray-200 shadow-sm hover:shadow-lg hover:border-blue-200 transition-all duration-200"
+                  >
+                    <div className="mx-auto mb-4 h-28 w-28 rounded-full overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center text-gray-400">
                       {member.photo ? (
                         <img
                           src={member.photo}
@@ -215,36 +244,45 @@ export default function AboutPage({ apiFetch }: AboutPageProps) {
                           className="h-full w-full object-cover"
                         />
                       ) : (
-                        <span className="text-xs uppercase tracking-[0.25em]">{t("about.noPhoto")}</span>
+                        <span className="text-sm font-medium text-gray-500">
+                          {member.name.charAt(0).toUpperCase()}
+                        </span>
                       )}
                     </div>
-                    <p className="text-sm font-semibold text-slate-900">{member.name}</p>
-                    <p className="text-xs text-slate-500 mt-1">{member.role}</p>
-                    <p className="text-sm text-slate-600 mt-3 leading-relaxed">{member.bio}</p>
+                    <h3 className="text-lg font-semibold text-gray-900">{member.name}</h3>
+                    <p className="text-sm text-blue-600 font-medium mt-1">{member.role}</p>
+                    <p className="text-sm text-gray-600 mt-3 leading-relaxed">{member.bio}</p>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="mt-14 rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-8">
+            {/* FAQ Section - Improved */}
+            <div className="mt-14">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-8">
                 <div>
-                  <p className="text-sm uppercase tracking-[0.3em] text-[#2563EB] font-semibold mb-2">
+                  <p className="text-sm font-semibold text-blue-600 uppercase tracking-[0.3em] mb-2">
                     {t("about.faqTitle")}
                   </p>
-                  <h2 className="text-2xl xs:text-3xl font-extrabold text-slate-900">
+                  <h2 className="text-3xl xs:text-4xl font-extrabold text-gray-900">
                     {t("about.faqHeading")}
                   </h2>
                 </div>
-                <p className="max-w-2xl text-sm text-slate-600 leading-relaxed">
+                <p className="max-w-2xl text-gray-600 leading-relaxed">
                   {t("about.faqDescription")}
                 </p>
               </div>
+
               <div className="space-y-4">
                 {faqs.map((item) => (
-                  <div key={item.id ?? item.question} className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                    <h3 className="text-sm font-semibold text-slate-900">{item.question}</h3>
-                    <p className="text-sm text-slate-600 mt-2 leading-relaxed">{item.answer}</p>
+                  <div 
+                    key={item.id ?? item.question} 
+                    className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-200"
+                  >
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      {item.question}
+                    </h3>
+                    <p className="text-gray-600 leading-relaxed">{item.answer}</p>
                   </div>
                 ))}
               </div>
