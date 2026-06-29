@@ -95,7 +95,8 @@ export function LiveClassPage({
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const [screenSharing, setScreenSharing] = useState(false);
   const [showWhiteboard, setShowWhiteboard] = useState(false);
-  const [showWhiteboardSettings, setShowWhiteboardSettings] = useState(true);
+  const [showWhiteboardSettings, setShowWhiteboardSettings] =
+    useState(true);
   const [whiteboardSize, setWhiteboardSize] = useState<
     "small" | "medium" | "large"
   >("medium");
@@ -109,7 +110,9 @@ export function LiveClassPage({
     y: 0,
   });
   const [showReactionMenu, setShowReactionMenu] = useState(false);
-  const [reactionOverlay, setReactionOverlay] = useState<string | null>(null);
+  const [reactionOverlay, setReactionOverlay] = useState<string | null>(
+    null,
+  );
   const [drawing, setDrawing] = useState(false);
   const drawingRef = useRef(false);
   const [lineWidth, setLineWidth] = useState(2);
@@ -117,15 +120,18 @@ export function LiveClassPage({
   const [eraserSize, setEraserSize] = useState(12);
   const [textInput, setTextInput] = useState("");
   const [shapeMode, setShapeMode] = useState<"rect" | "circle">("rect");
-  const [shapeStart, setShapeStart] = useState<{ x: number; y: number } | null>(
-    null,
-  );
+  const [shapeStart, setShapeStart] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
 
   // WebRTC & Presence State
-  const [participants, setParticipants] = useState<ParticipantPresence[]>([]);
-  const [remoteStreams, setRemoteStreams] = useState<Map<number, MediaStream>>(
-    new Map(),
+  const [participants, setParticipants] = useState<ParticipantPresence[]>(
+    [],
   );
+  const [remoteStreams, setRemoteStreams] = useState<
+    Map<number, MediaStream>
+  >(new Map());
   const [webrtcManager, setWebrtcManager] = useState<WebRTCManager | null>(
     null,
   );
@@ -143,9 +149,17 @@ export function LiveClassPage({
 
   const tools = [
     { id: "pen", icon: <Pencil size={16} />, label: t("liveClass.tools.pen") },
-    { id: "eraser", icon: <Eraser size={16} />, label: t("liveClass.tools.eraser") },
+    {
+      id: "eraser",
+      icon: <Eraser size={16} />,
+      label: t("liveClass.tools.eraser"),
+    },
     { id: "text", icon: <Type size={16} />, label: t("liveClass.tools.text") },
-    { id: "shape", icon: <Square size={16} />, label: t("liveClass.tools.shape") },
+    {
+      id: "shape",
+      icon: <Square size={16} />,
+      label: t("liveClass.tools.shape"),
+    },
   ];
 
   useEffect(() => {
@@ -193,7 +207,8 @@ export function LiveClassPage({
       if (data.session?.status === "ongoing") {
         setSession(data.session);
 
-        const tutorName = booking?.tutor?.name ?? t("liveClass.fallbackTutor");
+        const tutorName =
+          booking?.tutor?.name ?? t("liveClass.fallbackTutor");
         const message = t("liveClass.notifications.sessionStartedMessage", {
           tutor: tutorName,
         });
@@ -207,7 +222,6 @@ export function LiveClassPage({
             });
             setTimeout(() => notification.close(), 5000);
           } catch (err) {
-            // fallback to SweetAlert2 if notification creation fails
             alertInfo(title, message);
           }
         } else {
@@ -276,7 +290,6 @@ export function LiveClassPage({
           },
           onSignal: (signal) => {
             if (!isActive) return;
-            // Send signal through API
             console.log("[LiveClass] Sending WebRTC signal", signal.type);
             apiFetch(`/bookings/${bookingId}/live-session/signal`, {
               method: "POST",
@@ -302,7 +315,6 @@ export function LiveClassPage({
           },
         });
 
-        // Wait for local stream to be set
         await wrtcManager.setupLocalStream({ video: true, audio: true });
         setWebrtcManager(wrtcManager);
 
@@ -319,19 +331,17 @@ export function LiveClassPage({
             });
             setParticipants(participants);
 
-            // Create peer connections for other participants
             participants.forEach(async (participant) => {
-              if (participant.id === currentUserId) return; // Skip self
+              if (participant.id === currentUserId) return;
 
               try {
-                const isInitiator = currentUserId > participant.id; // Consistent initiator selection
+                const isInitiator = currentUserId > participant.id;
                 await wrtcManager.createPeerConnection(
                   participant.id,
                   participant.name,
                   isInitiator,
                 );
 
-                // Send offer if initiator
                 if (isInitiator) {
                   await wrtcManager.createAndSendOffer(participant.id);
                 }
@@ -348,7 +358,6 @@ export function LiveClassPage({
               return [...next, member];
             });
 
-            // Create new peer connection
             wrtcManager
               .createPeerConnection(
                 member.id,
@@ -380,7 +389,6 @@ export function LiveClassPage({
         const roomParticipants = await presenceManager.joinRoom();
         setPresenceManager(presenceManager);
 
-        // Listen for WebRTC signals from backend
         const presenceChannel = presenceManager.getChannel();
         if (presenceChannel) {
           presenceChannel.listen(".webrtc.signal", (data: any) => {
@@ -400,11 +408,9 @@ export function LiveClassPage({
 
     return () => {
       isActive = false;
-      // Cleanup WebRTC
       if (webrtcManager) {
         webrtcManager.destroy();
       }
-      // Cleanup Presence
       if (presenceManager) {
         presenceManager.destroy();
       }
@@ -425,7 +431,6 @@ export function LiveClassPage({
   }, []);
 
   useEffect(() => {
-    // Setup local media stream when component mounts
     let stream: MediaStream | null = null;
 
     const startLocalMedia = async () => {
@@ -451,7 +456,6 @@ export function LiveClassPage({
 
     startLocalMedia();
 
-    // Cleanup: Stop all tracks when component unmounts or when leaving
     return () => {
       if (stream) {
         stream.getTracks().forEach((track) => {
@@ -460,7 +464,7 @@ export function LiveClassPage({
         });
       }
     };
-  }, []); // Only run on mount
+  }, []);
 
   useEffect(() => {
     if (screenVideoRef.current && screenStream) {
@@ -502,23 +506,19 @@ export function LiveClassPage({
       track.enabled = !track.enabled;
     });
     setIsVideoOff((prev) => !prev);
-    // Sync with WebRTC manager if available
     webrtcManager?.setTrackEnabled("video", isVideoOff);
   };
 
   const toggleScreenShare = async () => {
     if (screenSharing) {
-      // Stop screen sharing
       screenStream?.getTracks().forEach((track) => track.stop());
       setScreenStream(null);
       setScreenSharing(false);
 
-      // Restore camera video
       try {
         if (localStream) {
           const videoTracks = localStream.getVideoTracks();
           if (videoTracks.length === 0) {
-            // Need to get camera again
             const newStream = await navigator.mediaDevices.getUserMedia({
               video: true,
               audio: false,
@@ -530,7 +530,10 @@ export function LiveClassPage({
           }
         }
       } catch (error) {
-            console.error(t("liveClass.error.restoreCameraAfterScreenShare"), error);
+        console.error(
+          t("liveClass.error.restoreCameraAfterScreenShare"),
+          error,
+        );
       }
       return;
     }
@@ -546,18 +549,15 @@ export function LiveClassPage({
         screenVideoRef.current.srcObject = stream;
       }
 
-      // Replace video track with screen stream for WebRTC
       const screenVideoTrack = stream.getVideoTracks()[0];
       if (screenVideoTrack && webrtcManager) {
         await webrtcManager.replaceVideoTrack(screenVideoTrack);
       }
 
-      // Listen for screen share stop (user pressed ESC or stop button)
       const handleScreenShareStop = () => {
         stream.getVideoTracks()[0].onended = null;
         setScreenStream(null);
         setScreenSharing(false);
-        // Restore camera
         navigator.mediaDevices
           .getUserMedia({ video: true, audio: false })
           .then((cameraStream) => {
@@ -566,17 +566,21 @@ export function LiveClassPage({
               webrtcManager.replaceVideoTrack(cameraVideoTrack);
             }
           })
-          .catch((error) => console.error(t("liveClass.error.restoreCamera"), error));
+          .catch((error) =>
+            console.error(t("liveClass.error.restoreCamera"), error),
+          );
       };
       stream.getVideoTracks()[0].onended = handleScreenShareStop;
-      } catch (error) {
+    } catch (error) {
       if ((error as any).name !== "NotAllowedError") {
         console.warn(t("liveClass.error.screenShareFailed"), error);
       }
     }
   };
 
-  const handleReaction = (type: "raise-hand" | "gift" | "clap" | "sparkle") => {
+  const handleReaction = (
+    type: "raise-hand" | "gift" | "clap" | "sparkle",
+  ) => {
     const emojiMap = {
       "raise-hand": "✋",
       gift: "🎁",
@@ -745,24 +749,25 @@ export function LiveClassPage({
     };
   }, [whiteboardDragging, dragOffset]);
 
-  /**
-   * Handle incoming WebRTC signals (offer/answer/ice-candidate) from other peers
-   */
   const handleWebRTCSignal = async (data: any, wrtcManager: WebRTCManager) => {
     const { from_user_id, type, payload } = data;
 
     if (from_user_id === user?.id) {
-      return; // Ignore own signals
+      return;
     }
 
-    console.log("[LiveClass] Received WebRTC signal", { from_user_id, type });
+    console.log("[LiveClass] Received WebRTC signal", {
+      from_user_id,
+      type,
+    });
 
     try {
       switch (type) {
         case "offer":
-          // Create peer connection if not exists and handle offer
           if (!wrtcManager.getPeers().find((p) => p.userId === from_user_id)) {
-            const participant = participants.find((p) => p.id === from_user_id);
+            const participant = participants.find(
+              (p) => p.id === from_user_id,
+            );
             await wrtcManager.createPeerConnection(
               from_user_id,
               participant?.name || "User",
@@ -792,17 +797,50 @@ export function LiveClassPage({
     }
   };
 
+  const isTutor = user?.role === "tutor";
+
+  const canJoinSession = useMemo(() => {
+    if (!session) return false;
+
+    if (isTutor) {
+      return (
+        session.status === "scheduled" || session.status === "ongoing"
+      );
+    }
+
+    return session.status === "ongoing";
+  }, [session?.status, isTutor]);
+
+  const joinButtonLabel = useMemo(() => {
+    if (joining) return t("liveClass.buttons.joining");
+    if (!session) return t("liveClass.buttons.waitTutor");
+
+    if (isTutor) {
+      return session.status === "scheduled"
+        ? t("liveClass.buttons.startSession")
+        : t("liveClass.buttons.joinNow");
+    }
+
+    return session.status === "ongoing"
+      ? t("liveClass.buttons.joinNow")
+      : t("liveClass.buttons.waitTutor");
+  }, [session?.status, isTutor, joining]);
+
   const handleJoinSession = async () => {
     if (!bookingId) return;
-    if (session?.status !== "ongoing") {
+
+    if (!canJoinSession) {
       alertInfo(t("liveClass.alert.waitTutorStart"));
       return;
     }
+
     setJoining(true);
     try {
       const result = await apiFetch(
         `/bookings/${bookingId}/live-session/join`,
-        { method: "POST" },
+        {
+          method: "POST",
+        },
       );
       setSession(result.data ?? result);
     } catch (error) {
@@ -828,7 +866,6 @@ export function LiveClassPage({
     }
   };
 
-  const isTutor = user?.role === "tutor";
   const title = useMemo(() => {
     const tutorName = booking?.tutor?.name ?? t("liveClass.fallbackTutor");
     return tutorName;
@@ -839,12 +876,16 @@ export function LiveClassPage({
       {/* Session Status Notification */}
       {session?.status === "ongoing" && (
         <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white px-4 py-2 text-center text-sm font-medium animate-pulse">
-          ✨ {t("liveClass.notifications.sessionStarted")} {t("liveClass.notifications.clickJoin")}
+          ✨ {t("liveClass.notifications.sessionStarted")}{" "}
+          {t("liveClass.notifications.clickJoin")}
         </div>
       )}
       {booking?.status === "confirmed" && session?.status !== "ongoing" && (
         <div className="bg-yellow-500/10 text-yellow-900 px-4 py-2 text-center text-sm font-medium border border-yellow-200">
-          🔔 {t("liveClass.notifications.sessionNotStarted", { tutor: booking?.tutor?.name ?? t("liveClass.fallbackTutor") })}
+          🔔{" "}
+          {t("liveClass.notifications.sessionNotStarted", {
+            tutor: booking?.tutor?.name ?? t("liveClass.fallbackTutor"),
+          })}
         </div>
       )}
 
@@ -899,7 +940,9 @@ export function LiveClassPage({
           <div className="w-px h-5 bg-white/10" />
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-            <span className="text-xs font-semibold text-red-400">{t("liveClass.status.live").toUpperCase()}</span>
+            <span className="text-xs font-semibold text-red-400">
+              {t("liveClass.status.live").toUpperCase()}
+            </span>
           </div>
           <span className="text-sm font-medium text-gray-300 truncate max-w-[150px]">
             {title}
@@ -909,7 +952,9 @@ export function LiveClassPage({
           <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-3 py-1.5 rounded">
             <Clock size={13} className="text-yellow-400" />
             <span className="text-xs font-bold text-white">
-              {session?.status === "ongoing" ? t("liveClass.status.live") : t("liveClass.status.ready")}
+              {session?.status === "ongoing"
+                ? t("liveClass.status.live")
+                : t("liveClass.status.ready")}
             </span>
           </div>
           <button
@@ -986,7 +1031,8 @@ export function LiveClassPage({
                   <div className="text-center">
                     <div className="w-12 h-12 rounded-full bg-blue-600/30 flex items-center justify-center mx-auto mb-2">
                       <span className="text-lg font-bold text-white">
-                        {user?.name?.charAt(0)?.toUpperCase() ?? t("liveClass.you").charAt(0).toUpperCase()}
+                        {user?.name?.charAt(0)?.toUpperCase() ??
+                          t("liveClass.you").charAt(0).toUpperCase()}
                       </span>
                     </div>
                     <span className="text-xs text-gray-400">
@@ -1106,7 +1152,9 @@ export function LiveClassPage({
                 </label>
                 <label className="flex items-center gap-2 text-xs text-gray-300">
                   <span>
-                    {activeTool === "eraser" ? t("liveClass.whiteboard.eraserSize") : t("liveClass.whiteboard.penSize")}
+                    {activeTool === "eraser"
+                      ? t("liveClass.whiteboard.eraserSize")
+                      : t("liveClass.whiteboard.penSize")}
                   </span>
                   <input
                     type="range"
@@ -1133,13 +1181,21 @@ export function LiveClassPage({
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => setShapeMode("rect")}
-                      className={`rounded-lg px-2 py-1 text-xs ${shapeMode === "rect" ? "bg-blue-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}
+                      className={`rounded-lg px-2 py-1 text-xs ${
+                        shapeMode === "rect"
+                          ? "bg-blue-600 text-white"
+                          : "bg-white/5 text-gray-300 hover:bg-white/10"
+                      }`}
                     >
                       {t("liveClass.whiteboard.shapeRect")}
                     </button>
                     <button
                       onClick={() => setShapeMode("circle")}
-                      className={`rounded-lg px-2 py-1 text-xs ${shapeMode === "circle" ? "bg-blue-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}
+                      className={`rounded-lg px-2 py-1 text-xs ${
+                        shapeMode === "circle"
+                          ? "bg-blue-600 text-white"
+                          : "bg-white/5 text-gray-300 hover:bg-white/10"
+                      }`}
                     >
                       {t("liveClass.whiteboard.shapeCircle")}
                     </button>
@@ -1158,14 +1214,10 @@ export function LiveClassPage({
             <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-[#1a1d2e]/90 border border-white/10 px-3 py-2 rounded-lg shadow-xl backdrop-blur-sm flex-wrap justify-center">
               <button
                 onClick={handleJoinSession}
-                disabled={session?.status !== "ongoing" || joining}
+                disabled={!canJoinSession || joining}
                 className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-60 mr-2"
               >
-                {session?.status === "ongoing"
-                  ? joining
-                    ? t("liveClass.buttons.joining")
-                    : t("liveClass.buttons.joinNow")
-                  : t("liveClass.buttons.waitTutor")}
+                {joinButtonLabel}
               </button>
               <button
                 onClick={toggleMic}
@@ -1209,7 +1261,9 @@ export function LiveClassPage({
                 <Pencil size={15} />
               </button>
               <button
-                onClick={() => setShowWhiteboardSettings((prev) => !prev)}
+                onClick={() =>
+                  setShowWhiteboardSettings((prev) => !prev)
+                }
                 className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${
                   showWhiteboardSettings
                     ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
@@ -1294,19 +1348,31 @@ export function LiveClassPage({
                 <div className="flex items-center gap-1 sm:gap-2">
                   <button
                     onClick={() => setWhiteboardSize("small")}
-                    className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs rounded ${whiteboardSize === "small" ? "bg-blue-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}
+                    className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs rounded ${
+                      whiteboardSize === "small"
+                        ? "bg-blue-600 text-white"
+                        : "bg-white/5 text-gray-300 hover:bg-white/10"
+                    }`}
                   >
                     {t("liveClass.popup.sizeSmall")}
                   </button>
                   <button
                     onClick={() => setWhiteboardSize("medium")}
-                    className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs rounded ${whiteboardSize === "medium" ? "bg-blue-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}
+                    className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs rounded ${
+                      whiteboardSize === "medium"
+                        ? "bg-blue-600 text-white"
+                        : "bg-white/5 text-gray-300 hover:bg-white/10"
+                    }`}
                   >
                     {t("liveClass.popup.sizeMedium")}
                   </button>
                   <button
                     onClick={() => setWhiteboardSize("large")}
-                    className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs rounded ${whiteboardSize === "large" ? "bg-blue-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}
+                    className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs rounded ${
+                      whiteboardSize === "large"
+                        ? "bg-blue-600 text-white"
+                        : "bg-white/5 text-gray-300 hover:bg-white/10"
+                    }`}
                   >
                     {t("liveClass.popup.sizeLarge")}
                   </button>
@@ -1322,30 +1388,48 @@ export function LiveClassPage({
               <div className="flex flex-wrap gap-1 sm:gap-2 items-center px-2 sm:px-4 py-1.5 sm:py-3 border-b border-white/10 bg-[#111821]">
                 <button
                   onClick={() => setActiveTool("pen")}
-                  className={`px-1.5 sm:px-3 py-1 sm:py-2 rounded-lg text-[10px] sm:text-xs ${activeTool === "pen" ? "bg-blue-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}
+                  className={`px-1.5 sm:px-3 py-1 sm:py-2 rounded-lg text-[10px] sm:text-xs ${
+                    activeTool === "pen"
+                      ? "bg-blue-600 text-white"
+                      : "bg-white/5 text-gray-300 hover:bg-white/10"
+                  }`}
                 >
                   {t("liveClass.toolButtons.pen")}
                 </button>
                 <button
                   onClick={() => setActiveTool("eraser")}
-                  className={`px-1.5 sm:px-3 py-1 sm:py-2 rounded-lg text-[10px] sm:text-xs ${activeTool === "eraser" ? "bg-blue-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}
+                  className={`px-1.5 sm:px-3 py-1 sm:py-2 rounded-lg text-[10px] sm:text-xs ${
+                    activeTool === "eraser"
+                      ? "bg-blue-600 text-white"
+                      : "bg-white/5 text-gray-300 hover:bg-white/10"
+                  }`}
                 >
                   {t("liveClass.toolButtons.eraser")}
                 </button>
                 <button
                   onClick={() => setActiveTool("text")}
-                  className={`px-1.5 sm:px-3 py-1 sm:py-2 rounded-lg text-[10px] sm:text-xs ${activeTool === "text" ? "bg-blue-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}
+                  className={`px-1.5 sm:px-3 py-1 sm:py-2 rounded-lg text-[10px] sm:text-xs ${
+                    activeTool === "text"
+                      ? "bg-blue-600 text-white"
+                      : "bg-white/5 text-gray-300 hover:bg-white/10"
+                  }`}
                 >
                   {t("liveClass.toolButtons.text")}
                 </button>
                 <button
                   onClick={() => setActiveTool("shape")}
-                  className={`px-1.5 sm:px-3 py-1 sm:py-2 rounded-lg text-[10px] sm:text-xs ${activeTool === "shape" ? "bg-blue-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}
+                  className={`px-1.5 sm:px-3 py-1 sm:py-2 rounded-lg text-[10px] sm:text-xs ${
+                    activeTool === "shape"
+                      ? "bg-blue-600 text-white"
+                      : "bg-white/5 text-gray-300 hover:bg-white/10"
+                  }`}
                 >
                   {t("liveClass.toolButtons.shape")}
                 </button>
                 <label className="flex items-center gap-1 sm:gap-2 text-[10px] sm:text-xs text-gray-200">
-                  <span className="hidden xs:inline">{t("liveClass.whiteboard.color")}</span>
+                  <span className="hidden xs:inline">
+                    {t("liveClass.whiteboard.color")}
+                  </span>
                   <input
                     type="color"
                     value={penColor}
@@ -1355,7 +1439,9 @@ export function LiveClassPage({
                 </label>
                 <label className="flex items-center gap-1 sm:gap-2 text-[10px] sm:text-xs text-gray-200">
                   <span className="hidden xs:inline">
-                    {activeTool === "eraser" ? t("liveClass.whiteboard.eraser") : t("liveClass.whiteboard.size")}
+                    {activeTool === "eraser"
+                      ? t("liveClass.whiteboard.eraser")
+                      : t("liveClass.whiteboard.size")}
                   </span>
                   <input
                     type="range"
@@ -1382,13 +1468,21 @@ export function LiveClassPage({
                   <div className="flex items-center gap-0.5 sm:gap-1">
                     <button
                       onClick={() => setShapeMode("rect")}
-                      className={`rounded-lg px-1 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs ${shapeMode === "rect" ? "bg-blue-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}
+                      className={`rounded-lg px-1 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs ${
+                        shapeMode === "rect"
+                          ? "bg-blue-600 text-white"
+                          : "bg-white/5 text-gray-300 hover:bg-white/10"
+                      }`}
                     >
                       ▭
                     </button>
                     <button
                       onClick={() => setShapeMode("circle")}
-                      className={`rounded-lg px-1 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs ${shapeMode === "circle" ? "bg-blue-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}
+                      className={`rounded-lg px-1 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs ${
+                        shapeMode === "circle"
+                          ? "bg-blue-600 text-white"
+                          : "bg-white/5 text-gray-300 hover:bg-white/10"
+                      }`}
                     >
                       ◯
                     </button>
