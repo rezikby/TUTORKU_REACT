@@ -109,22 +109,29 @@ export default function Navbar({
     languages.find((l) => l.code === language) || languages[0];
   const CurrentFlag = currentLang.flag;
 
+  // Fungsi untuk handle klik avatar di mobile
+  const handleAvatarClick = () => {
+    if (user) {
+      navigate("settings");
+      setMobileMenuOpen(false);
+    }
+  };
+
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 overflow-visible">
-  <div className="max-w-7xl mx-auto px-2 xs:px-3 sm:px-4 lg:px-6 xl-2xl:px-8 overflow-visible">
-    <div className="flex items-center justify-between h-14 xs:h-16 overflow-visible">
-      {/* Logo */}
-    <button
-  onClick={() => navigate("landing")}
-  className="flex items-center justify-center flex-shrink-0 overflow-visible"
->
-  <img
-    src="/img/logo1.png"
-    alt="TUTORKU Logo"
-    className="h-40 xs:h-44 w-auto object-contain block translate-y-2 xs:translate-y-1"
-  />
-</button>
-      
+      <div className="max-w-7xl mx-auto px-2 xs:px-3 sm:px-4 lg:px-6 xl-2xl:px-8 overflow-visible">
+        <div className="flex items-center justify-between h-14 xs:h-16 overflow-visible">
+          {/* Logo */}
+          <button
+            onClick={() => navigate("landing")}
+            className="flex items-center justify-center flex-shrink-0 overflow-visible"
+          >
+            <img
+              src="/img/logo1.png"
+              alt="TUTORKU Logo"
+              className="h-40 xs:h-44 w-auto object-contain block translate-y-2 xs:translate-y-1"
+            />
+          </button>
 
           {/* Search */}
           <div className="hidden xl:flex flex-1 max-w-xs mx-4 xl:mx-6">
@@ -170,8 +177,8 @@ export default function Navbar({
                     activePage === item.page
                       ? "scale-y-100"
                       : item.page === "chat"
-                        ? "scale-y-0 group-hover:scale-y-100 duration-300"
-                        : "scale-y-0 group-hover:scale-y-100"
+                      ? "scale-y-0 group-hover:scale-y-100 duration-300"
+                      : "scale-y-0 group-hover:scale-y-100"
                   } bg-[#2563EB] -z-10`}
                 />
 
@@ -231,9 +238,11 @@ export default function Navbar({
                     iconSize={16}
                   />
 
+                  {/* Avatar Mobile - klik langsung ke settings */}
                   <button
-                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                    onClick={handleAvatarClick}
                     className="w-8 h-8 xs:w-9 xs:h-9 flex items-center justify-center"
+                    aria-label="Settings"
                   >
                     {user.avatar ? (
                       <img
@@ -499,6 +508,22 @@ export default function Navbar({
                       }`}
                     >
                       {t("navbar.dashboardMenu")}
+                    </button>
+                    <button
+                      onClick={() => {
+                        navigate("settings");
+                        setMobileMenuOpen(false);
+                      }}
+                      className={`w-full text-left px-3 xs:px-4 py-2.5 xs:py-3 rounded-lg transition-all duration-200 text-sm ${
+                        activePage === "settings"
+                          ? "bg-blue-50 text-[#2563EB] font-semibold"
+                          : "text-gray-800 hover:bg-gray-50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Settings size={16} className="text-gray-500" />
+                        {t("navbar.settingsMenu")}
+                      </div>
                     </button>
                     <button
                       onClick={() => {
