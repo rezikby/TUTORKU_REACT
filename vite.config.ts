@@ -23,6 +23,10 @@ export default defineConfig({
     },
   },
 
+  build: {
+    outDir: "build",
+  },
+
   server: {
     host: "localhost",
     port: 5173,
