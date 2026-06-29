@@ -1,36 +1,30 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-const teamMembers = [
-  {
-    name: "Alif",
-    role: "Founder & Product Lead",
-    photo: null,
-  },
-  {
-    name: "Dewi",
-    role: "Design & UX",
-    photo: "https://images.unsplash.com/photo-1502685104226-ee32379fefbe?auto=format&fit=crop&w=400&q=80",
-  },
-  {
-    name: "Rian",
-    role: "Engineering",
-    photo: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80",
-  },
-  {
-    name: "Sari",
-    role: "Growth & Community",
-    photo: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80",
-  },
-];
+type TeamMember = {
+  id?: number | string;
+  name: string;
+  role: string;
+  bio: string;
+  photo?: string | null;
+};
 
-export default function AboutPage() {
+type FaqItem = {
+  id?: number | string;
+  question: string;
+  answer: string;
+};
+
+type AboutPageProps = {
+  apiFetch: (path: string, options?: RequestInit) => Promise<any>;
+};
+
+export default function AboutPage({ apiFetch }: AboutPageProps) {
   const { t } = useTranslation();
-  const featureRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const sectionRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const [visibleSections, setVisibleSections] = useState<boolean[]>(
-    new Array(8).fill(false),
-  );
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [faqs, setFaqs] = useState<FaqItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const features = useMemo(
     () => [
@@ -60,40 +54,80 @@ export default function AboutPage() {
     [t],
   );
 
+  const normalizeTeamMembers = (source: any): TeamMember[] => {
+    if (!source) return [];
+    const payload = source?.data ?? source;
+
+    const list =
+      Array.isArray(payload.team) && payload.team.length
+        ? payload.team
+        : Array.isArray(payload.teamMembers) && payload.teamMembers.length
+        ? payload.teamMembers
+        : Array.isArray(payload.team_members) && payload.team_members.length
+        ? payload.team_members
+        : Array.isArray(payload.about?.team) && payload.about.team.length
+        ? payload.about.team
+        : Array.isArray(payload.data?.team) && payload.data.team.length
+        ? payload.data.team
+        : [];
+
+    return list.map((item: any) => ({
+      id: item.id ?? item.name,
+      name: item.name ?? item.full_name ?? item.title ?? "",
+      role: item.role ?? item.position ?? "",
+      bio: item.bio ?? item.description ?? item.about ?? "",
+      photo: item.photo ?? item.avatar ?? item.image ?? null,
+    }));
+  };
+
+  const normalizeFaqs = (source: any): FaqItem[] => {
+    if (!source) return [];
+    const payload = source?.data ?? source;
+
+    const list =
+      Array.isArray(payload.faqs) && payload.faqs.length
+        ? payload.faqs
+        : Array.isArray(payload.faq) && payload.faq.length
+        ? payload.faq
+        : Array.isArray(payload.questions) && payload.questions.length
+        ? payload.questions
+        : Array.isArray(payload.about?.faqs) && payload.about.faqs.length
+        ? payload.about.faqs
+        : Array.isArray(payload.data?.faqs) && payload.data.faqs.length
+        ? payload.data.faqs
+        : [];
+
+    return list.map((item: any) => ({
+      id: item.id ?? item.question,
+      question: item.question ?? item.title ?? "",
+      answer: item.answer ?? item.response ?? item.description ?? "",
+    }));
+  };
+
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const index = Number(entry.target.getAttribute("data-index"));
-            if (!Number.isNaN(index)) {
-              setVisibleSections((current) => {
-                const next = [...current];
-                next[index] = true;
-                return next;
-              });
-            }
-          }
-        });
-      },
-      { threshold: 0.2 },
-    );
+    let mounted = true;
+    setLoading(true);
+    setError(null);
 
-    [...featureRefs.current, ...sectionRefs.current].forEach((element) => {
-      if (element) {
-        observer.observe(element);
-      }
-    });
+    apiFetch("/about")
+      .then((response) => {
+        if (!mounted) return;
+        setTeamMembers(normalizeTeamMembers(response));
+        setFaqs(normalizeFaqs(response));
+      })
+      .catch((err) => {
+        if (!mounted) return;
+        setError(err?.message || t("about.loadErrorFallback"));
+      })
+      .finally(() => {
+        if (!mounted) return;
+        setLoading(false);
+      });
 
-    return () => observer.disconnect();
-  }, []);
-
-  const sectionClass = (index: number) =>
-    `transition duration-700 ease-out transform ${
-      visibleSections[index]
-        ? "opacity-100 translate-y-0"
-        : "opacity-0 translate-y-8"
-    }`;
+    return () => {
+      mounted = false;
+    };
+  }, [apiFetch, t]);
 
   return (
     <div className="min-h-screen bg-white pt-14 xs:pt-16">
@@ -111,14 +145,10 @@ export default function AboutPage() {
         </div>
 
         <div className="grid gap-4 xs:gap-6 lg:grid-cols-3 mt-8 xs:mt-10">
-          {features.map((item, index) => (
+          {features.map((item) => (
             <div
               key={item.title}
-              ref={(el) => {
-                featureRefs.current[index] = el;
-              }}
-              data-index={index}
-              className={`${sectionClass(index)} bg-slate-50 p-5 rounded-3xl border border-slate-200 shadow-sm`}
+              className="bg-slate-50 p-5 rounded-3xl border border-slate-200 shadow-sm"
             >
               <p className="text-sm font-semibold text-slate-900 mb-2">{item.title}</p>
               <p className="text-sm text-slate-600 leading-relaxed">{item.description}</p>
@@ -127,25 +157,13 @@ export default function AboutPage() {
         </div>
 
         <div className="grid gap-4 xs:gap-6 lg:grid-cols-2 mt-10">
-          <div
-            ref={(el) => {
-              sectionRefs.current[3] = el;
-            }}
-            data-index={3}
-            className={`${sectionClass(3)} bg-[#EFF6FF] p-6 rounded-3xl border border-blue-100 shadow-sm`}
-          >
+          <div className="bg-[#EFF6FF] p-6 rounded-3xl border border-blue-100 shadow-sm">
             <h2 className="text-xl xs:text-2xl font-bold text-[#2563EB] mb-3">{t("about.missionTitle")}</h2>
             <p className="text-sm text-slate-700 leading-relaxed">
               {t("about.missionDescription")}
             </p>
           </div>
-          <div
-            ref={(el) => {
-              sectionRefs.current[4] = el;
-            }}
-            data-index={4}
-            className={`${sectionClass(4)} bg-[#EFF6FF] p-6 rounded-3xl border border-blue-100 shadow-sm`}
-          >
+          <div className="bg-[#EFF6FF] p-6 rounded-3xl border border-blue-100 shadow-sm">
             <h2 className="text-xl xs:text-2xl font-bold text-[#2563EB] mb-3">{t("about.visionTitle")}</h2>
             <p className="text-sm text-slate-700 leading-relaxed">
               {t("about.visionDescription")}
@@ -153,13 +171,7 @@ export default function AboutPage() {
           </div>
         </div>
 
-        <div
-          ref={(el) => {
-            sectionRefs.current[5] = el;
-          }}
-          data-index={5}
-          className={`${sectionClass(5)} grid grid-cols-2 md:grid-cols-4 gap-4 xs:gap-6 mt-10 pt-6 xs:pt-8 border-t border-slate-200`}
-        >
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 xs:gap-6 mt-10 pt-6 xs:pt-8 border-t border-slate-200">
           {stats.map((item) => (
             <div key={item.label} className="text-center bg-slate-50 p-4 rounded-3xl border border-slate-200 shadow-sm">
               <div className="text-2xl xs:text-3xl font-extrabold text-[#2563EB]">{item.value}</div>
@@ -168,56 +180,77 @@ export default function AboutPage() {
           ))}
         </div>
 
-        <div
-          ref={(el) => {
-            sectionRefs.current[6] = el;
-          }}
-          data-index={6}
-          className={`${sectionClass(6)} mt-14 rounded-3xl border border-slate-200 bg-slate-50 p-6 shadow-sm`}
-        >
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-8">
-            <div>
-              <p className="text-sm uppercase tracking-[0.3em] text-[#2563EB] font-semibold mb-2">Tim Kami</p>
-              <h2 className="text-2xl xs:text-3xl font-extrabold text-slate-900">Bersama membangun pengalaman belajar yang lebih baik</h2>
-            </div>
-            <p className="max-w-2xl text-sm text-slate-600 leading-relaxed">
-              Kami percaya belajar efektif terjadi saat teknologi, tutor, dan komunitas bekerja bersama.
-            </p>
+        {loading ? (
+          <div className="mt-12 rounded-3xl border border-slate-200 bg-slate-50 p-6 text-slate-700">
+            {t("about.loading")}
           </div>
-
-          <div className="grid gap-4 md:grid-cols-4">
-            {teamMembers.map((member) => (
-              <div key={member.name} className="rounded-3xl bg-white p-4 text-center border border-slate-200 shadow-sm">
-                <div className="mx-auto mb-4 h-24 w-24 overflow-hidden rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-                  {member.photo ? (
-                    <img
-                      src={member.photo}
-                      alt={member.name}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-xs uppercase tracking-[0.25em]">Coming</span>
-                  )}
+        ) : error ? (
+          <div className="mt-12 rounded-3xl border border-rose-200 bg-rose-50 p-6 text-rose-700">
+            {t("about.loadError", { error })}
+          </div>
+        ) : (
+          <>
+            <div className="mt-14 rounded-3xl border border-slate-200 bg-slate-50 p-8 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-8">
+                <div>
+                  <p className="text-sm uppercase tracking-[0.3em] text-[#2563EB] font-semibold mb-2">
+                    {t("about.teamTitle")}
+                  </p>
+                  <h2 className="text-2xl xs:text-3xl font-extrabold text-slate-900">
+                    {t("about.teamHeading")}
+                  </h2>
                 </div>
-                <p className="text-sm font-semibold text-slate-900">{member.name}</p>
-                <p className="text-xs text-slate-500 mt-1">{member.role}</p>
+                <p className="max-w-2xl text-sm text-slate-600 leading-relaxed">
+                  {t("about.teamDescription")}
+                </p>
               </div>
-            ))}
-          </div>
-        </div>
+              <div className="grid gap-4 md:grid-cols-3">
+                {teamMembers.map((member) => (
+                  <div key={member.id ?? member.name} className="rounded-3xl bg-white p-5 text-center border border-slate-200 shadow-sm">
+                    <div className="mx-auto mb-4 h-24 w-24 overflow-hidden rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                      {member.photo ? (
+                        <img
+                          src={member.photo}
+                          alt={member.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-xs uppercase tracking-[0.25em]">{t("about.noPhoto")}</span>
+                      )}
+                    </div>
+                    <p className="text-sm font-semibold text-slate-900">{member.name}</p>
+                    <p className="text-xs text-slate-500 mt-1">{member.role}</p>
+                    <p className="text-sm text-slate-600 mt-3 leading-relaxed">{member.bio}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
 
-        <div
-          ref={(el) => {
-            sectionRefs.current[7] = el;
-          }}
-          data-index={7}
-          className={`${sectionClass(7)} mt-14 rounded-3xl border border-slate-200 bg-gradient-to-r from-[#2563EB]/10 via-white to-[#2563EB]/5 p-8 text-center shadow-sm`}
-        >
-          <h3 className="text-xl xs:text-2xl font-bold text-slate-900 mb-3">Siap mulai perjalanan belajarmu?</h3>
-          <p className="text-sm text-slate-600 max-w-2xl mx-auto leading-relaxed">
-            TUTORKU mempertemukan siswa dengan tutor profesional dan komunitas pembelajar yang aktif.
-          </p>
-        </div>
+            <div className="mt-14 rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-8">
+                <div>
+                  <p className="text-sm uppercase tracking-[0.3em] text-[#2563EB] font-semibold mb-2">
+                    {t("about.faqTitle")}
+                  </p>
+                  <h2 className="text-2xl xs:text-3xl font-extrabold text-slate-900">
+                    {t("about.faqHeading")}
+                  </h2>
+                </div>
+                <p className="max-w-2xl text-sm text-slate-600 leading-relaxed">
+                  {t("about.faqDescription")}
+                </p>
+              </div>
+              <div className="space-y-4">
+                {faqs.map((item) => (
+                  <div key={item.id ?? item.question} className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                    <h3 className="text-sm font-semibold text-slate-900">{item.question}</h3>
+                    <p className="text-sm text-slate-600 mt-2 leading-relaxed">{item.answer}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

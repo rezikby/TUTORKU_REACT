@@ -1724,7 +1724,7 @@ export default function App() {
           />
         )}
 
-        {activePage === "about" && <AboutPage />}
+        {activePage === "about" && <AboutPage apiFetch={apiFetch} />}
 
         {activePage === "cari-tutor" && (
           <CariTutorPage
