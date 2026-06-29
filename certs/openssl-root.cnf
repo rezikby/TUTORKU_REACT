@@ -1,0 +1,30 @@
+[ ca ]
+default_ca = CA_default
+
+[ CA_default ]
+database = certs/index.txt
+days = 3650
+default_md = sha256
+policy = policy_any
+new_certs_dir = certs
+certificate = certs/rootCA.pem
+private_key = certs/rootCA.key
+serial = certs/serial
+default_days = 3650
+x509_extensions = v3_ca
+
+[ policy_any ]
+commonName = supplied
+
+[ req ]
+distinguished_name = req_distinguished_name
+x509_extensions = v3_ca
+prompt = no
+
+[ req_distinguished_name ]
+CN = TUTORKU Local CA
+
+[ v3_ca ]
+basicConstraints = critical,CA:TRUE,pathlen:0
+keyUsage = critical,keyCertSign,cRLSign
+subjectKeyIdentifier = hash

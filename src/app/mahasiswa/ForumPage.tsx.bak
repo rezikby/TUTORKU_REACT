@@ -1,0 +1,619 @@
+// frontend/src/components/ForumPage.tsx
+import { Dispatch, SetStateAction, useEffect, useState } from "react";
+import { PlusCircle, Flame, ThumbsUp, MessageSquare, Hash, Check, Search, Bookmark } from "lucide-react";
+import { toastError, toastSuccess } from "../lib/swal";
+
+type ForumComment = {
+  id: number;
+  user: { name: string; avatar?: string | null };
+  parent_id?: number | null;
+  body: string;
+  likes: number;
+  replies: ForumComment[];
+  time: string;
+  is_solution: boolean;
+};
+
+type ForumPost = {
+  id: number;
+  user: { name: string; avatar?: string | null };
+  category: string;
+  title: string;
+  body: string;
+  likes: number;
+  replies: number;
+  time: string;
+  solved: boolean;
+  liked_by_me?: boolean;
+  bookmarked_by_me?: boolean;
+  comments?: ForumComment[];
+};
+
+type ForumCategory = {
+  id: number;
+  name: string;
+  slug: string;
+};
+
+type Page = "landing" | "cari-tutor" | "detail-tutor" | "booking" | "live-class" | "chat" | "dashboard-siswa" | "forum" | "about" | "progress" | "settings" | "login" | "register" | "video" | "upload-video" | "admin" | "login-google-otp" | "tutor-registration" | "booking-saya" | "riwayat-belajar" | "favorit" | "notifikasi" | "platform-admin" | "tutor-login" | "admin-login";
+
+export function ForumPage({
+  posts,
+  setPosts,
+  likedPosts,
+  setLikedPosts,
+  apiFetch,
+  navigate,
+}: {
+  posts: ForumPost[];
+  setPosts: Dispatch<SetStateAction<ForumPost[]>>;
+  likedPosts: number[];
+  setLikedPosts: Dispatch<SetStateAction<number[]>>;
+  apiFetch: (path: string, options?: RequestInit) => Promise<any>;
+  navigate: (p: Page) => void;
+}) {
+  const [activeCategory, setActiveCategory] = useState("Semua");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [forumCategories, setForumCategories] = useState<ForumCategory[]>([]);
+  const [newCategoryId, setNewCategoryId] = useState<number | null>(null);
+  const [newTitle, setNewTitle] = useState("");
+  const [newBody, setNewBody] = useState("");
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [bookmarkedPosts, setBookmarkedPosts] = useState<number[]>([]);
+  const [expandedPostId, setExpandedPostId] = useState<number | null>(null);
+  const [expandedReplies, setExpandedReplies] = useState<Record<number, ForumComment[]>>({});
+  const [replyBodies, setReplyBodies] = useState<Record<number, string>>({});
+  const [loadingComments, setLoadingComments] = useState<Record<number, boolean>>({});
+  const [submittingReply, setSubmittingReply] = useState<Record<number, boolean>>({});
+
+  const categories = ["Semua", ...forumCategories.map((c) => c.name)];
+
+  const loadCategories = async () => {
+    try {
+      const data = await apiFetch("/forum/categories");
+      const items = data.data ?? data;
+      setForumCategories(items);
+      if (items.length > 0) {
+        setNewCategoryId(items[0].id);
+      }
+    } catch (error) {
+      console.error("Gagal memuat kategori forum", error);
+    }
+  };
+
+  useEffect(() => {
+    loadCategories();
+  }, []);
+
+  useEffect(() => {
+    const postLikes = posts
+      .filter((post) => post.liked_by_me)
+      .map((post) => post.id);
+    if (postLikes.length > 0) {
+      setLikedPosts(postLikes);
+    }
+  }, [posts, setLikedPosts]);
+
+  useEffect(() => {
+    const postBookmarks = posts
+      .filter((post) => post.bookmarked_by_me)
+      .map((post) => post.id);
+    if (postBookmarks.length > 0) {
+      setBookmarkedPosts(postBookmarks);
+    }
+  }, [posts]);
+
+  const loadPostComments = async (id: number) => {
+    if (expandedPostId === id && expandedReplies[id]) {
+      setExpandedPostId(null);
+      return;
+    }
+
+    setLoadingComments((prev) => ({ ...prev, [id]: true }));
+    try {
+      const data = await apiFetch(`/forum/posts/${id}`);
+      const detail = data.data ?? data;
+      const comments = detail.comments ?? [];
+      setExpandedReplies((prev) => ({ ...prev, [id]: comments }));
+      setExpandedPostId(id);
+    } catch (error) {
+      console.error("Gagal memuat komentar forum", error);
+      toastError("Gagal memuat komentar. Silakan coba lagi.");
+    } finally {
+      setLoadingComments((prev) => ({ ...prev, [id]: false }));
+    }
+  };
+
+  const toggleLike = async (id: number) => {
+    const currentLiked = likedPosts.includes(id);
+    setLikedPosts(currentLiked ? likedPosts.filter((i) => i !== id) : [...likedPosts, id]);
+    setPosts((current) =>
+      current.map((post) =>
+        post.id === id
+          ? {
+              ...post,
+              liked_by_me: !currentLiked,
+              likes: currentLiked ? Math.max(post.likes - 1, 0) : post.likes + 1,
+            }
+          : post,
+      ),
+    );
+
+    try {
+      const data = await apiFetch(`/forum/posts/${id}/like`, { method: "POST" });
+      const updatedLikes = data.likes ?? null;
+      if (updatedLikes !== null) {
+        setPosts((current) =>
+          current.map((post) =>
+            post.id === id
+              ? {
+                  ...post,
+                  likes: updatedLikes,
+                  liked_by_me: !currentLiked,
+                }
+              : post,
+          ),
+        );
+      }
+    } catch (error) {
+      setLikedPosts(currentLiked ? [...likedPosts, id] : likedPosts.filter((i) => i !== id));
+      setPosts((current) =>
+        current.map((post) =>
+          post.id === id
+            ? {
+                ...post,
+                liked_by_me: currentLiked,
+                likes: post.likes,
+              }
+            : post,
+        ),
+      );
+      toastError("Gagal menyimpan like. Silakan masuk terlebih dahulu.");
+    }
+  };
+
+  const toggleBookmark = async (id: number) => {
+    const currentBookmarked = bookmarkedPosts.includes(id);
+    setBookmarkedPosts(
+      currentBookmarked
+        ? bookmarkedPosts.filter((i) => i !== id)
+        : [...bookmarkedPosts, id]
+    );
+
+    setPosts((current) =>
+      current.map((post) =>
+        post.id === id
+          ? { ...post, bookmarked_by_me: !currentBookmarked }
+          : post,
+      ),
+    );
+
+    try {
+      await apiFetch(`/forum/posts/${id}/bookmark`, { method: "POST" });
+    } catch (error) {
+      setBookmarkedPosts(
+        currentBookmarked
+          ? [...bookmarkedPosts, id]
+          : bookmarkedPosts.filter((i) => i !== id)
+      );
+      toastError("Gagal menyimpan bookmark. Silakan masuk terlebih dahulu.");
+    }
+  };
+
+  const submitReply = async (postId: number) => {
+    const body = replyBodies[postId];
+    if (!body || !body.trim()) {
+      toastError("Isi balasan terlebih dahulu.");
+      return;
+    }
+
+    setSubmittingReply((prev) => ({ ...prev, [postId]: true }));
+    try {
+      const newComment = await apiFetch(`/forum/posts/${postId}/comments`, {
+        method: "POST",
+        body: JSON.stringify({ body: body.trim() }),
+      });
+
+      const comment = newComment.data ?? newComment;
+
+      setExpandedReplies((prev) => ({
+        ...prev,
+        [postId]: [...(prev[postId] ?? []), comment],
+      }));
+
+      setPosts((current) =>
+        current.map((post) =>
+          post.id === postId ? { ...post, replies: post.replies + 1 } : post,
+        ),
+      );
+
+      setReplyBodies((prev) => ({ ...prev, [postId]: "" }));
+      toastSuccess("Balasan berhasil ditambahkan.");
+    } catch (error: any) {
+      console.error("Gagal menambah balasan", error);
+      toastError(error?.message || "Terjadi kesalahan saat menambah balasan.");
+    } finally {
+      setSubmittingReply((prev) => ({ ...prev, [postId]: false }));
+    }
+  };
+
+  const filtered = posts
+    .filter((post) => {
+      if (activeCategory === "Semua") return true;
+      return post.category === activeCategory;
+    })
+    .filter((post) => {
+      if (!searchQuery.trim()) return true;
+      const query = searchQuery.trim().toLowerCase();
+      return (
+        post.title.toLowerCase().includes(query) ||
+        post.body.toLowerCase().includes(query) ||
+        post.category.toLowerCase().includes(query)
+      );
+    });
+
+  const getTimeAgo = (time: string) => {
+    if (!time) return "";
+    const date = new Date(time);
+    if (isNaN(date.getTime())) return time;
+    const diffMs = Date.now() - date.getTime();
+    const minutes = Math.floor(diffMs / 60000);
+    if (minutes < 1) return "Baru saja";
+    if (minutes < 60) return `${minutes}m lalu`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}j lalu`;
+    const days = Math.floor(hours / 24);
+    return `${days}h lalu`;
+  };
+
+  const extractHashtags = (text: string) => {
+    const matches = Array.from(text.matchAll(/#[\p{L}\p{N}_-]+/gu)).map((m) => m[0]);
+    return Array.from(new Set(matches));
+  };
+
+  return (
+    <div className="min-h-screen bg-white">
+      <div className="max-w-4xl mx-auto px-4 py-6 pb-32">
+        {/* Header - Forum Komunitas sejajar dengan Buat Post */}
+        <div className="flex items-start sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-2xl font-extrabold text-gray-900">Forum Komunitas</h1>
+            <p className="text-sm text-gray-400 mt-0.5">Tanya, diskusi, dan belajar bersama</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowCreateForm((prev) => !prev)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors rounded whitespace-nowrap shrink-0 mt-1 sm:mt-0"
+          >
+            <PlusCircle size={16} />
+            Buat Post
+          </button>
+        </div>
+
+        {showCreateForm && (
+          <div className="border border-blue-200 bg-blue-50/50 rounded p-4 mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-blue-900">Buat Post Baru</h2>
+                <p className="text-sm text-blue-700 mt-1">
+                  Pilih kategori, tulis judul dan jelaskan masalah atau diskusi Anda.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateForm(false)}
+                className="text-sm text-blue-700 hover:text-blue-900"
+              >
+                Batal
+              </button>
+            </div>
+
+            <div className="grid gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Kategori</label>
+                <select
+                  value={newCategoryId ?? ""}
+                  onChange={(event) => setNewCategoryId(Number(event.target.value))}
+                  className="w-full rounded border border-gray-200 bg-white px-4 py-2 text-sm text-gray-900 focus:border-blue-400 focus:outline-none"
+                >
+                  {forumCategories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Judul Post</label>
+                <input
+                  type="text"
+                  value={newTitle}
+                  onChange={(event) => setNewTitle(event.target.value)}
+                  placeholder="Judul singkat seperti: Cara cepat kuasai rumus integral"
+                  className="w-full rounded border border-gray-200 bg-white px-4 py-2 text-sm text-gray-900 focus:border-blue-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Deskripsi</label>
+                <textarea
+                  value={newBody}
+                  onChange={(event) => setNewBody(event.target.value)}
+                  placeholder="Jelaskan masalah atau topik diskusi Anda..."
+                  rows={5}
+                  className="w-full rounded border border-gray-200 bg-white px-4 py-2 text-sm text-gray-900 focus:border-blue-400 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateForm(false)}
+                  className="px-4 py-2 rounded border border-blue-600 text-blue-600 hover:bg-blue-50 transition"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    isSubmitting || !newCategoryId || !newTitle.trim() || !newBody.trim()
+                  }
+                  onClick={async () => {
+                    if (!newCategoryId) {
+                      toastError("Pilih kategori terlebih dahulu.");
+                      return;
+                    }
+                    if (!newTitle.trim() || !newBody.trim()) {
+                      toastError("Judul dan deskripsi tidak boleh kosong.");
+                      return;
+                    }
+                    setIsSubmitting(true);
+                    try {
+                      const newPost = await apiFetch("/forum/posts", {
+                        method: "POST",
+                        body: JSON.stringify({
+                          forum_category_id: newCategoryId,
+                          title: newTitle.trim(),
+                          body: newBody.trim(),
+                        }),
+                      });
+
+                      const created = newPost.data ?? newPost;
+                      setPosts((current) => [created, ...current]);
+                      setShowCreateForm(false);
+                      setNewTitle("");
+                      setNewBody("");
+                      toastSuccess("Post berhasil dibuat.");
+                    } catch (error: any) {
+                      console.error("Gagal membuat post forum", error);
+                      toastError(
+                        error?.message || "Terjadi kesalahan saat membuat post."
+                      );
+                    } finally {
+                      setIsSubmitting(false);
+                    }
+                  }}
+                  className="inline-flex items-center justify-center px-4 py-2 rounded bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition disabled:cursor-not-allowed disabled:bg-blue-300"
+                >
+                  {isSubmitting ? "Menyimpan..." : "Kirim Post"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Filter - langsung di bawah header */}
+        <div className="flex items-center gap-2 mb-4 overflow-x-auto">
+          {categories.map((c) => (
+            <button
+              key={c}
+              onClick={() => setActiveCategory(c)}
+              className={`px-4 py-1.5 text-sm font-medium transition-colors whitespace-nowrap rounded ${
+                activeCategory === c
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+
+        {/* Search Bar */}
+        <div className="relative mb-4">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Cari diskusi..."
+            className="w-full px-4 py-2.5 pl-10 border border-gray-200 bg-white text-gray-900 text-sm placeholder-gray-400 focus:outline-none focus:border-blue-400 rounded"
+          />
+          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        </div>
+
+        {/* Trending */}
+        {posts.length > 0 && (
+          <div className="border border-gray-200 p-4 mb-4 bg-gray-50 rounded">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 flex items-center justify-center bg-yellow-50 border border-yellow-200 shrink-0 rounded">
+                <Flame size={16} className="text-yellow-600" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-xs font-semibold text-yellow-600">Trending</span>
+                <p className="text-sm text-gray-700 truncate">Strategi mengerjakan TPS UTBK dalam waktu terbatas</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Posts */}
+        {filtered.length === 0 ? (
+          <div className="border border-gray-200 p-8 text-center rounded">
+            <div className="text-gray-400 text-sm">Belum ada diskusi di kategori ini.</div>
+            <button
+              type="button"
+              onClick={() => setShowCreateForm(true)}
+              className="mt-4 px-5 py-2 bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors rounded"
+            >
+              Buat Post Pertama
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="space-y-3">
+              {filtered.map((post) => {
+                const userName = typeof post.user === "string" ? post.user : post.user?.name ?? "Pengguna";
+                const avatarSrc = post.user && typeof post.user === "object" ? post.user.avatar ?? undefined : undefined;
+                const time = post.time ?? "";
+                const isLiked = post.liked_by_me ?? likedPosts.includes(post.id);
+                const likeCount = post.likes;
+                const hashtags = extractHashtags(`${post.title} ${post.body}`);
+
+                return (
+                  <div key={post.id} className="border border-gray-200 p-4 hover:border-gray-300 transition-colors cursor-pointer rounded">
+                    {/* User & Meta */}
+                  <div className="flex items-start gap-3 mb-3">
+                    {avatarSrc ? (
+                      <img src={avatarSrc} alt={userName} className="w-10 h-10 object-cover bg-gray-100 shrink-0 rounded" />
+                    ) : (
+                      <div className="w-10 h-10 bg-blue-600 text-white flex items-center justify-center text-sm font-bold shrink-0 rounded">
+                        {userName.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold text-gray-900">{userName}</span>
+                        <span className="text-[10px] px-2 py-0.5 bg-blue-50 text-blue-600 font-medium border border-blue-200 rounded">
+                          {post.category}
+                        </span>
+                        {post.solved && (
+                          <span className="text-[10px] px-2 py-0.5 bg-green-50 text-green-600 font-medium border border-green-200 flex items-center gap-1 rounded">
+                            <Check size={10} /> Terjawab
+                          </span>
+                        )}
+                        {post.replies > 0 && !post.solved && (
+                          <span className="text-[10px] px-2 py-0.5 bg-blue-50 text-blue-600 font-medium border border-blue-200 flex items-center gap-1 rounded">
+                            <MessageSquare size={10} /> {post.replies} Balasan
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-400 ml-auto">{getTimeAgo(time)}</span>
+                      </div>
+                      <h3 className="text-sm font-semibold text-gray-900 mt-1">{post.title}</h3>
+                      <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">{post.body}</p>
+                      {hashtags.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          {hashtags.map((tag) => (
+                            <span key={tag} className="inline-flex items-center rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-blue-700">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-4 pt-3 border-t border-gray-100">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); toggleLike(post.id); }}
+                      className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${
+                        isLiked ? "text-red-600" : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      <ThumbsUp size={14} fill={isLiked ? "#DC2626" : "none"} />
+                      {likeCount}
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); loadPostComments(post.id); }}
+                      className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                      <MessageSquare size={14} />
+                      {post.replies}
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); toggleBookmark(post.id); }}
+                      className={`flex items-center gap-1.5 text-xs font-medium transition-colors ml-auto ${
+                        bookmarkedPosts.includes(post.id) ? "text-yellow-500" : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      <Bookmark size={14} fill={bookmarkedPosts.includes(post.id) ? "#FBBF24" : "none"} />
+                      Tandai
+                    </button>
+                  </div>
+                </div>
+
+                {/* Expanded Comments Section */}
+                {expandedPostId === post.id && (
+                  <div className="mt-4 border-t border-gray-200 pt-4">
+                    {loadingComments[post.id] ? (
+                      <div className="text-center text-sm text-gray-500">Memuat komentar...</div>
+                    ) : (
+                      <>
+                        {expandedReplies[post.id] && expandedReplies[post.id].length > 0 ? (
+                          <div className="space-y-3 mb-4">
+                            {expandedReplies[post.id].map((comment) => (
+                              <div key={comment.id} className="rounded border border-gray-200 bg-gray-50 p-3">
+                                <div className="flex items-start gap-2">
+                                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white">
+                                    {comment.user?.name?.charAt(0).toUpperCase() ?? "U"}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-semibold text-gray-900">{comment.user?.name}</span>
+                                      <span className="text-xs text-gray-500">{comment.time}</span>
+                                      {comment.is_solution && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded">Solusi</span>}
+                                    </div>
+                                    <p className="mt-1 text-xs text-gray-700">{comment.body}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center text-xs text-gray-500 mb-4">Belum ada balasan.</div>
+                        )}
+
+                        {/* Reply Form */}
+                        <div className="border-t border-gray-200 pt-3">
+                          <textarea
+                            value={replyBodies[post.id] ?? ""}
+                            onChange={(e) => setReplyBodies((prev) => ({ ...prev, [post.id]: e.target.value }))}
+                            placeholder="Tulis balasan Anda..."
+                            rows={3}
+                            className="w-full rounded border border-gray-200 bg-white px-3 py-2 text-xs text-gray-900 focus:border-blue-400 focus:outline-none"
+                          />
+                          <div className="flex justify-end gap-2 mt-2">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedPostId(null)}
+                              className="px-3 py-1 rounded text-xs border border-gray-200 text-gray-600 hover:bg-gray-50 transition"
+                            >
+                              Tutup
+                            </button>
+                            <button
+                              type="button"
+                              disabled={submittingReply[post.id] || !replyBodies[post.id]?.trim()}
+                              onClick={() => submitReply(post.id)}
+                              className="px-3 py-1 rounded text-xs bg-blue-600 text-white hover:bg-blue-700 transition disabled:bg-blue-300"
+                            >
+                              {submittingReply[post.id] ? "Mengirim..." : "Kirim"}
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        </>)}
+      </div>
+    </div>
+  );
+}
+
+export default ForumPage;
