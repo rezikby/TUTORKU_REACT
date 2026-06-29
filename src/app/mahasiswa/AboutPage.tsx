@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from "react";
-import { useTranslation }react-i18next";
+import { useTranslation } from "react-i18next";
 
 type TeamMember = {
   id?: number | string;
