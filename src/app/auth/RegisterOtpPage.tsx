@@ -156,26 +156,14 @@ export default function RegisterOtpPage({
         return;
       }
 
-      const registrationResult = await registerWithPhone(phone, name);
-
-      if (!registrationResult.success) {
-        const secs = parseCooldownFromMessage(registrationResult.message || undefined);
-        if (secs) {
-          setCountdown(secs);
-        }
-        setOtpError(registrationResult.message || t("auth.registerFailed"));
-        setIsVerifying(false);
-        return;
-      }
-
-      const token = registrationResult.token || localStorage.getItem("TUTORKU_token");
+      const token = verified.token || localStorage.getItem("TUTORKU_token");
 
       if (token) {
         if (!localStorage.getItem("TUTORKU_token")) {
           localStorage.setItem("TUTORKU_token", token);
         }
 
-        const role = registrationResult.role || "siswa";
+        const role = verified.role || "siswa";
         if (role === "tutor") {
           navigate("dashboard-tutor");
         } else {
@@ -183,7 +171,6 @@ export default function RegisterOtpPage({
         }
       } else {
         setOtpError("Token tidak ditemukan. Silakan login ulang.");
-        setIsVerifying(false);
       }
     } catch (err: any) {
       console.error("Verification error:", err);
