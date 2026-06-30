@@ -244,7 +244,7 @@ export default function DetailTutorPage(props: any) {
                   {t("detailTutor.bookNow")}
                 </button>
                 <button onClick={() => onChat?.(tutor.user_id)} className="px-2 xs:px-4 py-1.5 xs:py-2 border border-gray-300 text-gray-700 text-xs xs:text-sm font-medium hover:bg-gray-50 transition-colors flex items-center gap-1 xs:gap-1.5 rounded">
-                  <MessageCircle size={14} /> {t("detailTutor.chat")}
+                  <MessageCircle size={14} /> {t("pesan")}
                 </button>
                 <button onClick={handleFavorite} className="px-2 xs:px-3 py-1.5 xs:py-2 border border-gray-300 hover:bg-gray-50 transition-colors rounded">
                   <Heart size={14} className={tutor.is_favorited ? "fill-red-500 text-red-500" : "text-gray-400"} />
