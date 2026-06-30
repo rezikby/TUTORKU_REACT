@@ -6,8 +6,11 @@ import { Bot, Send, X } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Textarea } from "../components/ui/textarea";
 
-const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY ?? "";
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
+const API_BASE = (env.VITE_API_URL ?? "http://localhost:8000/api").replace(/\/?$/, "");
+const GROQ_API_KEY = (env.VITE_GROQ_API_KEY || env.GROQ_API_KEY || "").trim();
+const GROQ_MODEL = (env.VITE_GROQ_MODEL || env.GROQ_MODEL || "mixtral-8x7b-32768").trim();
+const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -28,34 +31,55 @@ export default function AiPopup({ compact }: { compact?: boolean } = {}) {
   const [isLoading, setIsLoading] = React.useState(false);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
 
-  const translateText = async (text: string, targetLang: string) => {
-    if (!OPENROUTER_API_KEY) return text;
-
-    try {
-      const resp = await fetch(OPENROUTER_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: "mixtral-8x7b-32768",
+  const callAi = async (prompt: string) => {
+    const isGroqConfigured = Boolean(GROQ_API_KEY);
+    const endpoint = isGroqConfigured ? GROQ_URL : `${API_BASE}/ai/chat`;
+    const payload = isGroqConfigured
+      ? {
+          model: GROQ_MODEL,
           messages: [
             {
               role: "system",
-              content: `You are a professional translator. Translate the user's text to ${targetLang} preserving meaning and formatting. Return only the translated text.`,
+              content: "You are a helpful assistant for TUTORKU.",
             },
-            { role: "user", content: text },
+            { role: "user", content: prompt },
           ],
-          temperature: 0,
+          temperature: 0.7,
           max_tokens: 600,
-        }),
-      });
+        }
+      : { message: prompt };
 
-      if (!resp.ok) return text;
-      const j = await resp.json();
-      const translated = j?.choices?.[0]?.message?.content || j?.results?.[0]?.content || j?.output?.[0]?.content;
-      return (translated || text).trim();
+    const headers: Record<string, string> = isGroqConfigured
+      ? {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${GROQ_API_KEY}`,
+        }
+      : {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        };
+
+    const resp = await fetch(endpoint, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    });
+
+    if (!resp.ok) {
+      const errorBody = await resp.text();
+      throw new Error(`AI request failed: ${resp.status} ${errorBody}`);
+    }
+
+    const json = await resp.json();
+    return isGroqConfigured
+      ? json?.choices?.[0]?.message?.content || "AI tidak mengembalikan respons yang valid."
+      : json?.reply || json?.message || json?.response || json?.content || "AI tidak mengembalikan respons yang valid.";
+  };
+
+  const translateText = async (text: string, targetLang: string) => {
+    try {
+      const translated = await callAi(`Translate the following text to ${targetLang}:\n\n${text}`);
+      return translated.trim();
     } catch (e) {
       console.warn("Translation failed:", e);
       return text;
@@ -75,11 +99,6 @@ export default function AiPopup({ compact }: { compact?: boolean } = {}) {
     setError("");
 
     const trimmedInput = input.trim();
-    if (!OPENROUTER_API_KEY) {
-      setError(t("aiPopup.openRouterMissing"));
-      return;
-    }
-
     if (!trimmedInput) {
       setError(t("aiPopup.enterQuestion"));
       return;
@@ -94,18 +113,7 @@ export default function AiPopup({ compact }: { compact?: boolean } = {}) {
     setIsLoading(true);
 
     try {
-      const result = await fetch(OPENROUTER_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: "mixtral-8x7b-32768",
-          messages: [
-            {
-              role: "system",
-              content: `Kamu adalah Smart Matching AI yang membantu siswa memilih tutor di TUTORKU.
+      const output = await callAi(`Kamu adalah Smart Matching AI yang membantu siswa memilih tutor di TUTORKU.
 Buat rekomendasi tutor terbaik berdasarkan kebutuhan belajar siswa.
 
 Berikan:
@@ -113,33 +121,9 @@ Berikan:
 2. alasan mengapa masing-masing cocok,
 3. jika memungkinkan, sampaikan estimasi harga atau paket belajar yang relevan.
 
-Tulis jawaban dalam bahasa Indonesia yang ringkas dan mudah dibaca.`,
-            },
-            ...messages.map((m) => ({
-              role: m.role,
-              content: m.text,
-            })),
-            {
-              role: "user",
-              content: trimmedInput,
-            },
-          ],
-          temperature: 0.7,
-          max_tokens: 600,
-        }),
-      });
+Tulis jawaban dalam bahasa Indonesia yang ringkas dan mudah dibaca.
 
-      if (!result.ok) {
-        const errorBody = await result.text();
-        throw new Error(`OpenRouter error: ${result.status} ${errorBody}`);
-      }
-
-      const json = await result.json();
-      const output =
-        json?.choices?.[0]?.message?.content ||
-        json?.results?.[0]?.content ||
-        json?.output?.[0]?.content ||
-        "AI tidak mengembalikan rekomendasi yang valid.";
+Pertanyaan pengguna: ${trimmedInput}`);
 
       const userLang = i18n?.language || (typeof window !== "undefined" ? localStorage.getItem("TUTORKU_lang") || "id" : "id");
       let finalText = output.trim();
