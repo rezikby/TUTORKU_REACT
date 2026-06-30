@@ -232,7 +232,11 @@ export default function Navbar({
                   />
 
                   <button
-                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                    onClick={() => {
+                      navigate("settings");
+                      setIsUserMenuOpen(false);
+                      setMobileMenuOpen(false);
+                    }}
                     className="w-8 h-8 xs:w-9 xs:h-9 flex items-center justify-center"
                   >
                     {user.avatar ? (
