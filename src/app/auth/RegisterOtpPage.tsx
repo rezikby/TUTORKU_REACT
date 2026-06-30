@@ -65,7 +65,9 @@ export default function RegisterOtpPage({
   }, [countdown]);
 
   useEffect(() => {
-    if (otpError) setOtpError(null);
+    if (otpError) {
+      setOtpError(null);
+    }
   }, [otp]);
 
   useEffect(() => {
