@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Star, MapPin, Clock, BookOpen, Wallet, Loader2, Check, Video, CreditCard, QrCode, Landmark } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toastError, toastSuccess } from "../lib/swal";
@@ -216,7 +216,8 @@ export default function BookingPage(props: any) {
       setLoadingDays(true);
       try {
         const data = await apiFetch(`/tutors/${fullTutor.id}/available-slots`);
-        const dates = (data.days ?? [])
+        const days = (data.data?.days ?? data.days ?? []) as any[];
+        const dates = days
           .filter((d: any) => d.has_available_slot)
           .map((d: any) => {
             const date = new Date(d.date);
@@ -243,7 +244,8 @@ export default function BookingPage(props: any) {
       setSelectedEndTime(null);
       try {
         const data = await apiFetch(`/tutors/${fullTutor.id}/available-slots?date=${selectedDate}`);
-        setSlots((data.slots ?? []).map((s: any) => (typeof s === 'string' ? { time: s, available: true } : s)));
+        const slots = (data.data?.slots ?? data.slots ?? []) as any[];
+        setSlots(slots.map((s: any) => (typeof s === 'string' ? { time: s, available: true } : s)));
       } catch (e) {
         console.error("Gagal memuat jam", e);
       } finally {
