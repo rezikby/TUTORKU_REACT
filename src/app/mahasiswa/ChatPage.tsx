@@ -203,7 +203,15 @@ export function ChatPage({
     });
 
     return () => {
-      echo.leave(`chat.${activeConvo.id}`);
+      // PENTING: jangan pakai echo.leave() di sini. echo.leave() akan
+      // benar-benar unsubscribe channel "chat.{id}" dari koneksi WebSocket,
+      // padahal channel yang sama juga dipakai oleh listener daftar
+      // percakapan (effect di bawah). Kalau dipanggil di sini, channel itu
+      // bisa ter-unsubscribe walau masih dibutuhkan listener lain, sehingga
+      // pesan baru berhenti realtime sampai halaman di-refresh.
+      // Cukup lepas listener milik effect ini saja.
+      channel.stopListening(".message.sent");
+      channel.stopListening(".user.typing");
     };
   }, [activeConvo?.id, token]);
 
@@ -218,8 +226,8 @@ export function ChatPage({
       // Subscribe to each conversation to get realtime updates
       conversations.forEach((convo) => {
         const channel = echo.private(`chat.${convo.id}`);
-        
-        channel.listen(".message.sent", (e: any) => {
+
+        const handler = (e: any) => {
           const incoming = e.message ?? e;
           console.debug("[chat-realtime] conversation list update", { convoId: convo.id, incoming });
           
@@ -240,9 +248,17 @@ export function ChatPage({
                 : c
             )
           );
-        });
+        };
 
-        unlisteners.push(() => echo.leave(`chat.${convo.id}`));
+        channel.listen(".message.sent", handler);
+
+        // PENTING: jangan pakai echo.leave() di sini. Channel "chat.{id}"
+        // ini bisa jadi channel yang sama dengan yang sedang dipakai effect
+        // chat aktif di atas. echo.leave() akan unsubscribe channel itu
+        // sepenuhnya dari WebSocket walau masih dipakai listener lain,
+        // sehingga pesan baru berhenti realtime sampai halaman di-refresh.
+        // Cukup lepas listener ".message.sent" milik effect ini saja.
+        unlisteners.push(() => channel.stopListening(".message.sent", handler));
       });
 
       return () => {
