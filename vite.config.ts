@@ -35,19 +35,19 @@ export default defineConfig({
     allowedHosts: "all",
     proxy: {
       "/api": {
-        target: "http://localhost:8000",
+        target: "https://rezi-laravel.nlabs.id",
         changeOrigin: true,
-        secure: false,
+        secure: true,
       },
       "/sanctum": {
-        target: "http://localhost:8000",
+        target: "https://rezi-laravel.nlabs.id",
         changeOrigin: true,
-        secure: false,
+        secure: true,
       },
       "/broadcasting": {
-        target: "http://localhost:8000",
+        target: "https://rezi-laravel.nlabs.id",
         changeOrigin: true,
-        secure: false,
+        secure: true,
       },
     },
   },

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { toastError, toastSuccess } from "../lib/swal";
 import WebsiteRatingPopup from "../mahasiswa/WebsiteRatingPopup";
 
-const API_ROOT = (import.meta as any).env?.VITE_API_URL?.replace(/\/api\/?$/, "") ?? "http://localhost:8000";
+const API_ROOT = (import.meta as any).env?.VITE_API_URL?.replace(/\/api\/?$/, "") ?? "https://rezi-laravel.nlabs.id";
 const defaultTutorPhoto = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&auto=format";
 
 function CalendarPicker({ availableDates, selectedDate, onSelect }: {

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Search, SlidersHorizontal, Star, MapPin, Clock, BookOpen } from "lucide-react";
 import { toastError } from "../lib/swal";
 
-const API_ROOT = (import.meta as any).env?.VITE_API_URL?.replace(/\/api\/?$/, "") ?? "http://localhost:8000";
+const API_ROOT = (import.meta as any).env?.VITE_API_URL?.replace(/\/api\/?$/, "") ?? "https://rezi-laravel.nlabs.id";
 
 function formatPrice(value: number) {
   return value.toLocaleString("id-ID");

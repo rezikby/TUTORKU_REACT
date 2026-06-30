@@ -18,7 +18,7 @@ type VideoItem = {
 
 export default function VideoPage({ navigate }: { navigate: (p: any) => void }) {
   const { t } = useTranslation();
-  const API_BASE = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8000/api";
+  const API_BASE = (import.meta as any).env?.VITE_API_URL ?? "https://rezi-laravel.nlabs.id/api";
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [subjects, setSubjects] = useState<string[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string | "all">("all");

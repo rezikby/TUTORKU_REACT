@@ -855,7 +855,7 @@ export function LiveClassPage({
     return session.status === "ongoing"
       ? t("liveClass.buttons.joinNow")
       : t("liveClass.buttons.waitTutor");
-  }, [session?.status, isTutor, joining, hasJoined]);
+  }, [session?.status, isTutor, joining, hasJoined, t]);
 
   // ── FIX 5: handleJoinSession — simpan hasJoined ke localStorage ──────────────
   const handleJoinSession = async () => {

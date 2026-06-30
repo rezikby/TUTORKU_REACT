@@ -140,7 +140,7 @@ export default function LandingPage({
   useEffect(() => {
     const fetchTestimonials = async () => {
       try {
-        const API_ROOT = (import.meta as any).env?.VITE_API_URL?.replace(/\/api\/?$/, "") ?? "http://localhost:8000";
+        const API_ROOT = (import.meta as any).env?.VITE_API_URL?.replace(/\/api\/?$/, "") ?? "https://rezi-laravel.nlabs.id";
         const response = await fetch(`${API_ROOT}/api/website/ratings`);
         const data = await response.json();
         

@@ -5,7 +5,7 @@
 
 import React, { useState } from "react";
 
-const API_BASE = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8000/api";
+const API_BASE = (import.meta as any).env?.VITE_API_URL ?? "https://rezi-laravel.nlabs.id/api";
 const API_ROOT = API_BASE.replace(/\/api\/?$/, "");
 
 /**

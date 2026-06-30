@@ -20,11 +20,11 @@ window.Pusher = Pusher;
 let echoInstance: Echo | null = null;
 let echoToken: string | null = null;
 
-const API_ROOT = (import.meta as any).env?.VITE_API_URL?.replace(/\/api\/?$/, "") ?? "http://localhost:8000";
+const API_ROOT = (import.meta as any).env?.VITE_API_URL?.replace(/\/api\/?$/, "") ?? "https://rezi-laravel.nlabs.id";
 
 // ── FIX: Baca scheme dulu, lalu tentukan port default yang benar ──────────────
-const REVERB_SCHEME = (import.meta as any).env?.VITE_REVERB_SCHEME ?? "http";
-const REVERB_HOST   = (import.meta as any).env?.VITE_REVERB_HOST ?? "localhost";
+const REVERB_SCHEME = (import.meta as any).env?.VITE_REVERB_SCHEME ?? "https";
+const REVERB_HOST   = (import.meta as any).env?.VITE_REVERB_HOST ?? "rezi-laravel.nlabs.id";
 // Jika port di env tidak di-set, gunakan default sesuai scheme
 const REVERB_PORT   = Number(
   (import.meta as any).env?.VITE_REVERB_PORT ?? (REVERB_SCHEME === "https" ? 443 : 8080)

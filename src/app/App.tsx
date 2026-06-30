@@ -244,7 +244,7 @@ type LoginResult = {
 };
 
 const API_BASE =
-  (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8000/api";
+  (import.meta as any).env?.VITE_API_URL ?? "https://rezi-laravel.nlabs.id/api";
 const API_ROOT = API_BASE.replace(/\/api\/?$/, "");
 const defaultTutorPhoto =
   "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&auto=format";
@@ -337,11 +337,21 @@ export default function App() {
 
   const apiFetch = async (path: string, options: RequestInit = {}) => {
     const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
+    const incomingHeaders =
+      options.headers instanceof Headers
+        ? Object.fromEntries(options.headers.entries())
+        : Array.isArray(options.headers)
+        ? Object.fromEntries(options.headers)
+        : (options.headers as Record<string, string> | undefined) ?? {};
+
     const headers: HeadersInit = {
       Accept: "application/json",
+      "Accept-Language": language || "id",
+      "X-Locale": language || "id",
       ...(options.body instanceof FormData
         ? {}
         : { "Content-Type": "application/json" }),
+      ...incomingHeaders,
     };
 
     const currentToken = token || localStorage.getItem("TUTORKU_token");

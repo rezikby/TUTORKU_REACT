@@ -22,7 +22,7 @@ const STATUS_ICONS: Record<BookingStatus, React.ReactNode> = {
   rejected: <AlertCircle size={14} className="text-red-600" />,
 };
 
-const API_ROOT = (import.meta as any).env?.VITE_API_URL?.replace(/\/api\/?$/, "") ?? "http://localhost:8000";
+const API_ROOT = (import.meta as any).env?.VITE_API_URL?.replace(/\/api\/?$/, "") ?? "https://rezi-laravel.nlabs.id";
 
 export default function BookingSayaPage(props: any) {
   const { apiFetch, navigate, onSelectBooking } = props;

@@ -20,7 +20,7 @@ type AboutPageProps = {
 };
 
 export default function AboutPage({ apiFetch }: AboutPageProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [faqs, setFaqs] = useState<FaqItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -158,7 +158,14 @@ export default function AboutPage({ apiFetch }: AboutPageProps) {
     setLoading(true);
     setError(null);
 
-    apiFetch("/about")
+    const locale = i18n.language || "id";
+
+    apiFetch(`/about?lang=${encodeURIComponent(locale)}`, {
+      headers: {
+        "Accept-Language": locale,
+        "X-Locale": locale,
+      },
+    })
       .then((response) => {
         if (!mounted) return;
         setTeamMembers(normalizeTeamMembers(response));
@@ -176,7 +183,7 @@ export default function AboutPage({ apiFetch }: AboutPageProps) {
     return () => {
       mounted = false;
     };
-  }, [apiFetch, t]);
+  }, [apiFetch, i18n.language]);
 
   return (
     <div className="min-h-screen bg-white pt-14 xs:pt-16">

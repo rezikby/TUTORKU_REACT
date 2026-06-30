@@ -420,7 +420,7 @@ export default function LoginPage({
             </div>
             <div className="relative flex justify-center text-sm">
               <span className="px-4 bg-white dark:bg-gray-950 text-gray-500">
-                {t("common.or")}
+                {t("atau")}
               </span>
             </div>
           </div>

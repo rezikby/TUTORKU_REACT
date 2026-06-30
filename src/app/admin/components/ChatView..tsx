@@ -257,7 +257,7 @@ export default function ChatView({ user }: ChatViewProps) {
     setUploadError(null);
     setUploadProgress(0);
     try {
-      const API_BASE = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8000/api";
+      const API_BASE = (import.meta as any).env?.VITE_API_URL ?? "https://rezi-laravel.nlabs.id/api";
       const url = `/chat/conversations/${activeConversation.id}/messages`;
       const fullUrl = url.startsWith("http") ? url : `${API_BASE}${url}`;
       const token = localStorage.getItem("TUTORKU_token");

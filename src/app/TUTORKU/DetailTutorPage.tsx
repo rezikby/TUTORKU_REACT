@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { toastSuccess, toastError } from "../lib/swal";
 
-const API_ROOT = (import.meta as any).env?.VITE_API_URL?.replace(/\/api\/?$/, "") ?? "http://localhost:8000";
+const API_ROOT = (import.meta as any).env?.VITE_API_URL?.replace(/\/api\/?$/, "") ?? "https://rezi-laravel.nlabs.id";
 
 const DAY_LABEL_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 const DAY_KEYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];

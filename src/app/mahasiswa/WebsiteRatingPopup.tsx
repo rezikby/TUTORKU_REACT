@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Star, X } from "lucide-react";
 import { toastError, toastSuccess } from "../lib/swal";
 
-const API_ROOT = (import.meta as any).env?.VITE_API_URL?.replace(/\/api\/?$/, "") ?? "http://localhost:8000";
+const API_ROOT = (import.meta as any).env?.VITE_API_URL?.replace(/\/api\/?$/, "") ?? "https://rezi-laravel.nlabs.id";
 
 interface WebsiteRatingPopupProps {
   bookingId?: number;
