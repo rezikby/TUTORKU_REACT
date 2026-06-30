@@ -81,17 +81,16 @@ function CalendarPicker({ availableDates, selectedDate, onSelect }: {
           const isAvail = availableDates.includes(iso);
           const isSel = selectedDate === iso;
           const isSun = idx % 7 === 0;
-          const isPast = new Date(iso) < new Date(today.toDateString());
           return (
             <button
               key={iso}
-              disabled={!isAvail || isPast}
+              disabled={!isAvail}
               onClick={() => onSelect(iso)}
               className={`
                 aspect-square flex items-center justify-center text-sm w-9 h-9 transition-colors rounded
                 ${isSel ? "bg-blue-600 text-white font-bold" : ""}
-                ${!isSel && isAvail && !isPast ? "hover:bg-blue-50 text-gray-900 cursor-pointer" : ""}
-                ${!isAvail || isPast ? "text-gray-300 cursor-not-allowed" : ""}
+                ${!isSel && isAvail ? "hover:bg-blue-50 text-gray-900 cursor-pointer" : ""}
+                ${!isAvail ? "text-gray-300 cursor-not-allowed" : ""}
                 ${isSun && !isSel ? "text-red-400" : ""}
               `}
             >
@@ -219,7 +218,12 @@ export default function BookingPage(props: any) {
         const data = await apiFetch(`/tutors/${fullTutor.id}/available-slots`);
         const dates = (data.days ?? [])
           .filter((d: any) => d.has_available_slot)
-          .map((d: any) => d.date);
+          .map((d: any) => {
+            const date = new Date(d.date);
+            if (Number.isNaN(date.getTime())) return null;
+            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+          })
+          .filter((d: string | null): d is string => !!d);
         setAvailableDates(dates);
         if (dates.length > 0) setSelectedDate(dates[0]);
       } catch (e) {
