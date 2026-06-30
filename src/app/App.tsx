@@ -246,6 +246,7 @@ type LoginResult = {
 const API_BASE =
   (import.meta as any).env?.VITE_API_URL ?? "https://rezi-laravel.nlabs.id/api";
 const API_ROOT = API_BASE.replace(/\/api\/?$/, "");
+const FRONTEND_CALLBACK_PATH = "/login/callback";
 const defaultTutorPhoto =
   "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&auto=format";
 
@@ -1023,9 +1024,20 @@ export default function App() {
     try {
       setLoading((prev) => ({ ...prev, auth: true }));
       const validRole = typeof role === "string" ? role : "student";
+      const frontendCallbackUrl =
+        typeof window !== "undefined"
+          ? `${window.location.origin}${FRONTEND_CALLBACK_PATH}`
+          : "";
+
+      const redirectParams = new URLSearchParams({
+        role: validRole,
+      });
+      if (frontendCallbackUrl) {
+        redirectParams.set("redirect_uri", frontendCallbackUrl);
+      }
 
       const response = await fetch(
-        `${API_BASE}/auth/google/redirect?role=${validRole}`,
+        `${API_BASE}/auth/google/redirect?${redirectParams.toString()}`,
         {
           method: "GET",
           headers: {
@@ -1401,6 +1413,55 @@ export default function App() {
   useEffect(() => {
     const applyHashRoute = () => {
       const hash = window.location.hash || "";
+      const pathname = window.location.pathname || "";
+      const search = window.location.search || "";
+
+      const handleGoogleCallback = (queryString: string) => {
+        const params = new URLSearchParams(queryString);
+        const googleToken = params.get("token");
+        const userRole = params.get("role");
+        const error = params.get("error");
+
+        if (error) {
+          setLoginError("Login Google gagal. Silakan coba lagi.");
+          navigate("login");
+          return true;
+        }
+
+        if (googleToken) {
+          setToken(googleToken);
+          localStorage.setItem("TUTORKU_token", googleToken);
+          fetchUser();
+          toastSuccess("Login berhasil! Selamat datang.");
+
+          if (userRole === "tutor") {
+            navigate("admin");
+          } else if (userRole === "admin") {
+            navigate("platform-admin");
+          } else {
+            navigate("dashboard-siswa");
+          }
+          return true;
+        }
+
+        setLoginError("Token tidak valid. Silakan coba lagi.");
+        navigate("login");
+        return true;
+      };
+
+      const handleGoogleOtpCallback = (queryString: string) => {
+        const params = new URLSearchParams(queryString);
+        const pendingToken = params.get("pending_token");
+
+        if (pendingToken) {
+          setPendingGoogleToken(pendingToken);
+          setActivePage("login-google-otp");
+        } else {
+          setLoginError("Token tidak valid. Silakan ulangi login.");
+          navigate("login");
+        }
+        return true;
+      };
 
       if (hash === "#/" || hash === "" || hash === "#") {
         setActivePage("landing");
@@ -1422,51 +1483,23 @@ export default function App() {
 
       if (hash.startsWith("#/login/google-otp")) {
         const query = hash.split("?")[1] ?? "";
-        const params = new URLSearchParams(query);
-        const pendingToken = params.get("pending_token");
-
-        if (pendingToken) {
-          setPendingGoogleToken(pendingToken);
-          setActivePage("login-google-otp");
-        } else {
-          setLoginError("Token tidak valid. Silakan ulangi login.");
-          navigate("login");
-        }
+        handleGoogleOtpCallback(query);
         return;
       }
 
       if (hash.startsWith("#/login/callback")) {
         const query = hash.split("?")[1] ?? "";
-        const params = new URLSearchParams(query);
-        const googleToken = params.get("token");
-        const userRole = params.get("role");
-        const error = params.get("error");
+        handleGoogleCallback(query);
+        return;
+      }
 
-        if (error) {
-          setLoginError("Login Google gagal. Silakan coba lagi.");
-          navigate("login");
-          return;
-        }
+      if (pathname === FRONTEND_CALLBACK_PATH) {
+        handleGoogleCallback(search.replace(/^\?/, ""));
+        return;
+      }
 
-        if (googleToken) {
-          setToken(googleToken);
-          localStorage.setItem("TUTORKU_token", googleToken);
-          fetchUser();
-          toastSuccess("Login berhasil! Selamat datang.");
-
-          // Route berdasarkan role
-          if (userRole === "tutor") {
-            navigate("admin");
-          } else if (userRole === "admin") {
-            navigate("platform-admin");
-          } else {
-            navigate("dashboard-siswa");
-          }
-          return;
-        }
-
-        setLoginError("Token tidak valid. Silakan coba lagi.");
-        navigate("login");
+      if (pathname === "/login/google-otp") {
+        handleGoogleOtpCallback(search.replace(/^\?/, ""));
         return;
       }
 
