@@ -125,6 +125,14 @@ export function LiveClassPage({
     y: number;
   } | null>(null);
 
+  // ── FIX 1: State hasJoined persisten via localStorage ──────────────────────
+  // Mencegah tombol balik ke "Join Now" setelah join berhasil,
+  // bahkan jika WebSocket gagal atau komponen re-render.
+  const [hasJoined, setHasJoined] = useState<boolean>(() => {
+    if (!bookingId) return false;
+    return localStorage.getItem(`tutorku_joined_${bookingId}`) === "true";
+  });
+
   // WebRTC & Presence State
   const [participants, setParticipants] = useState<ParticipantPresence[]>(
     [],
@@ -193,6 +201,24 @@ export function LiveClassPage({
       active = false;
     };
   }, [bookingId]);
+
+  // ── FIX 2: Sinkronisasi hasJoined saat session ongoing dimuat dari API ──────
+  // Jika siswa refresh halaman dan session sudah ongoing + sudah pernah join,
+  // pastikan hasJoined tetap true agar tombol tidak muncul lagi.
+  useEffect(() => {
+    if (!bookingId || !session) return;
+    if (session.status === "ongoing") {
+      const alreadyJoined = localStorage.getItem(`tutorku_joined_${bookingId}`) === "true";
+      if (alreadyJoined && !hasJoined) {
+        setHasJoined(true);
+      }
+    }
+    // Reset flag jika sesi sudah berakhir
+    if (session.status === "ended") {
+      localStorage.removeItem(`tutorku_joined_${bookingId}`);
+      setHasJoined(false);
+    }
+  }, [session?.status, bookingId]);
 
   // Listen untuk real-time notification saat tutor mulai sesi
   useEffect(() => {
@@ -799,6 +825,7 @@ export function LiveClassPage({
 
   const isTutor = user?.role === "tutor";
 
+  // ── FIX 3: canJoinSession — siswa yang sudah join tidak perlu join lagi ──────
   const canJoinSession = useMemo(() => {
     if (!session) return false;
 
@@ -808,9 +835,11 @@ export function LiveClassPage({
       );
     }
 
-    return session.status === "ongoing";
-  }, [session?.status, isTutor]);
+    // Siswa: hanya bisa join jika session ongoing DAN belum join sebelumnya
+    return session.status === "ongoing" && !hasJoined;
+  }, [session?.status, isTutor, hasJoined]);
 
+  // ── FIX 4: joinButtonLabel — tampilkan "Bergabung" setelah berhasil join ──────
   const joinButtonLabel = useMemo(() => {
     if (joining) return t("liveClass.buttons.joining");
     if (!session) return t("liveClass.buttons.waitTutor");
@@ -821,16 +850,22 @@ export function LiveClassPage({
         : t("liveClass.buttons.joinNow");
     }
 
+    // Siswa
+    if (hasJoined) return t("liveClass.buttons.joined"); // "✓ Bergabung"
     return session.status === "ongoing"
       ? t("liveClass.buttons.joinNow")
       : t("liveClass.buttons.waitTutor");
-  }, [session?.status, isTutor, joining]);
+  }, [session?.status, isTutor, joining, hasJoined]);
 
+  // ── FIX 5: handleJoinSession — simpan hasJoined ke localStorage ──────────────
   const handleJoinSession = async () => {
     if (!bookingId) return;
 
     if (!canJoinSession) {
-      alertInfo(t("liveClass.alert.waitTutorStart"));
+      // Jika sudah join, tidak perlu info lagi — cukup diam
+      if (!hasJoined) {
+        alertInfo(t("liveClass.alert.waitTutorStart"));
+      }
       return;
     }
 
@@ -842,10 +877,18 @@ export function LiveClassPage({
           method: "POST",
         },
       );
-      setSession(result.data ?? result);
+      const sessionData = result.data ?? result;
+      setSession(sessionData);
+
+      // Tandai sebagai sudah join — persisten meski WebSocket mati
+      setHasJoined(true);
+      localStorage.setItem(`tutorku_joined_${bookingId}`, "true");
+
+      console.log("[LiveClass] Join session berhasil", sessionData);
     } catch (error) {
       console.error(t("liveClass.alert.joinFailed"), error);
       alertError(t("liveClass.alert.joinFailed"));
+      // Jangan set hasJoined jika ada error
     } finally {
       setJoining(false);
     }
@@ -859,6 +902,9 @@ export function LiveClassPage({
         method: "POST",
       });
       setSession(result.data ?? result);
+      // Hapus flag join saat sesi berakhir
+      localStorage.removeItem(`tutorku_joined_${bookingId}`);
+      setHasJoined(false);
     } catch (error) {
       console.error(t("liveClass.alert.endFailed"), error);
     } finally {
@@ -877,7 +923,8 @@ export function LiveClassPage({
       {session?.status === "ongoing" && (
         <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white px-4 py-2 text-center text-sm font-medium animate-pulse">
           ✨ {t("liveClass.notifications.sessionStarted")}{" "}
-          {t("liveClass.notifications.clickJoin")}
+          {/* ── FIX 6: Hanya tampilkan "klik join" jika belum join ── */}
+          {!hasJoined && t("liveClass.notifications.clickJoin")}
         </div>
       )}
       {booking?.status === "confirmed" && session?.status !== "ongoing" && (
@@ -1212,10 +1259,15 @@ export function LiveClassPage({
             )}
 
             <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-[#1a1d2e]/90 border border-white/10 px-3 py-2 rounded-lg shadow-xl backdrop-blur-sm flex-wrap justify-center">
+              {/* ── FIX 7: Tombol join — disable + warna beda jika sudah join ── */}
               <button
                 onClick={handleJoinSession}
-                disabled={!canJoinSession || joining}
-                className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-60 mr-2"
+                disabled={joining || hasJoined}
+                className={`px-4 py-1.5 text-white text-xs font-semibold rounded-lg transition-colors mr-2 ${
+                  hasJoined
+                    ? "bg-emerald-800 opacity-70 cursor-default"
+                    : "bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60"
+                }`}
               >
                 {joinButtonLabel}
               </button>
