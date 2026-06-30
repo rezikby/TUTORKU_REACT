@@ -541,7 +541,7 @@ const resources = {
         studentsShort: "siswa",
         perSession: "/Sesi",
         bookNow: "Booking Sekarang",
-        Pesan: "Chat",
+        chat: "Pesan",
         favorite: "Favorit",
         share: "Bagikan",
         report: "Laporkan",
