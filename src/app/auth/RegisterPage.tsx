@@ -183,8 +183,6 @@ export default function RegisterPage({
         <div className="relative z-10 space-y-6">
           <h2 className="text-4xl font-bold text-white leading-tight">
             {t("auth.brandTagline")}
-            <br />
-            {t("auth.brandTagline")}
           </h2>
           <p className="text-white/70 text-lg">
             {t("auth.registerMissionText")}

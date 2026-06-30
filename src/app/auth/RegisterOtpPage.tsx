@@ -1,12 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Loader2,
-  ArrowRight,
-  AlertCircle,
-  Shield,
-  CheckCircle,
-} from "lucide-react";
+import { Loader2, ArrowRight, AlertCircle, Shield, CheckCircle } from "lucide-react";
 
 type LoginResult = {
   success: boolean;
@@ -23,10 +17,7 @@ interface RegisterOtpPageProps {
   name: string;
   navigate: (page: string) => void;
   verifyPhoneOtp: (phone: string, otp: string) => Promise<LoginResult>;
-  registerWithPhone: (
-    phone: string,
-    name: string,
-  ) => Promise<{
+  registerWithPhone: (phone: string, name: string) => Promise<{
     success: boolean;
     token?: string;
     role?: string;
@@ -77,7 +68,6 @@ export default function RegisterOtpPage({
     if (otpError) setOtpError(null);
   }, [otp]);
 
-  // If parent passed an `error` that contains cooldown info, parse it
   useEffect(() => {
     if (error) {
       const secs = parseCooldownFromMessage(error);
@@ -87,7 +77,6 @@ export default function RegisterOtpPage({
     }
   }, [error]);
 
-  // Auto-focus first input on mount
   useEffect(() => {
     if (inputRefs.current[0]) {
       inputRefs.current[0].focus();
@@ -96,7 +85,6 @@ export default function RegisterOtpPage({
 
   const parseCooldownFromMessage = (msg?: string | null): number | null => {
     if (!msg) return null;
-    // match first number, integer or float
     const m = msg.match(/(\d+\.?\d*)/);
     if (!m) return null;
     const val = Math.ceil(parseFloat(m[1]));
@@ -110,21 +98,16 @@ export default function RegisterOtpPage({
     newOtp[index] = value.replace(/\D/g, "");
     setOtp(newOtp);
 
-    // Auto focus ke input berikutnya
     if (value && index < 4) {
       inputRefs.current[index + 1]?.focus();
     }
   };
 
-  const handleKeyDown = (
-    index: number,
-    e: React.KeyboardEvent<HTMLInputElement>,
-  ) => {
+  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Backspace" && !otp[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
 
-    // Submit on Enter
     if (e.key === "Enter" && otp.join("").length === 5) {
       e.preventDefault();
       handleVerifyOtp(e as any);
@@ -145,7 +128,6 @@ export default function RegisterOtpPage({
       });
       setOtp(newOtp);
 
-      // Focus ke input terakhir yang terisi
       const lastIndex = Math.min(digits.length - 1, 4);
       inputRefs.current[lastIndex]?.focus();
     }
@@ -164,7 +146,6 @@ export default function RegisterOtpPage({
     setOtpError(null);
 
     try {
-      // Step 1: Verify OTP
       const verified = await verifyPhoneOtp(phone, otpString);
 
       if (!verified.success) {
@@ -173,14 +154,10 @@ export default function RegisterOtpPage({
         return;
       }
 
-      // Step 2: Register user
       const registrationResult = await registerWithPhone(phone, name);
 
       if (!registrationResult.success) {
-        // If server message contains cooldown seconds, set countdown
-        const secs = parseCooldownFromMessage(
-          registrationResult.message || undefined,
-        );
+        const secs = parseCooldownFromMessage(registrationResult.message || undefined);
         if (secs) {
           setCountdown(secs);
         }
@@ -189,17 +166,13 @@ export default function RegisterOtpPage({
         return;
       }
 
-      // Step 3: Save token and redirect
-      const token =
-        registrationResult.token || localStorage.getItem("TUTORKU_token");
+      const token = registrationResult.token || localStorage.getItem("TUTORKU_token");
 
       if (token) {
-        // Save token if not already saved
         if (!localStorage.getItem("TUTORKU_token")) {
           localStorage.setItem("TUTORKU_token", token);
         }
 
-        // Navigate berdasarkan role
         const role = registrationResult.role || "siswa";
         if (role === "tutor") {
           navigate("dashboard-tutor");
@@ -236,12 +209,10 @@ export default function RegisterOtpPage({
         setResendSuccess(true);
         inputRefs.current[0]?.focus();
 
-        // Auto-hide success message after 3 seconds
         setTimeout(() => {
           setResendSuccess(false);
         }, 3000);
       } else {
-        // if message contains seconds, set countdown
         const secs = parseCooldownFromMessage(result.message);
         if (secs) {
           setCountdown(secs);
@@ -261,7 +232,6 @@ export default function RegisterOtpPage({
 
   return (
     <div className="min-h-screen flex bg-white dark:bg-gray-950">
-      {/* Left Side - Branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-[#2563EB] flex-col justify-between p-12 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
@@ -279,21 +249,14 @@ export default function RegisterOtpPage({
           </div>
         </div>
         <div className="relative z-10 space-y-6">
-          <h2 className="text-4xl font-bold text-white leading-tight">
-            {t("auth.brandTagline")}
-          </h2>
-          <p className="text-white/70 text-lg">
-            {t("auth.registerMissionText")}
-          </p>
+          <h2 className="text-4xl font-bold text-white leading-tight">{t("auth.brandTagline")}</h2>
+          <p className="text-white/70 text-lg">{t("auth.registerMissionText")}</p>
         </div>
         <div className="relative z-10">
-          <p className="text-white/50 text-sm">
-            © 2024 TUTORKU. Hak cipta dilindungi.
-          </p>
+          <p className="text-white/50 text-sm">© 2024 TUTORKU. Hak cipta dilindungi.</p>
         </div>
       </div>
 
-      {/* Right Side - OTP Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center px-4 sm:px-6 py-12">
         <div className="w-full max-w-md">
           <button
@@ -305,15 +268,10 @@ export default function RegisterOtpPage({
           </button>
 
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {t("auth.verifyNumber")}
-            </h1>
-            <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-              {t("auth.otpSent")}
-            </p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t("auth.verifyNumber")}</h1>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">{t("auth.otpSent")}</p>
           </div>
 
-          {/* Error Messages */}
           {error && (
             <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-500 rounded-lg flex items-center gap-2 text-red-600 dark:text-red-400 text-sm">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -328,7 +286,6 @@ export default function RegisterOtpPage({
             </div>
           )}
 
-          {/* Success Message */}
           {resendSuccess && (
             <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-500 rounded-lg flex items-center gap-2 text-green-600 dark:text-green-400 text-sm">
               <CheckCircle className="w-4 h-4 flex-shrink-0" />
