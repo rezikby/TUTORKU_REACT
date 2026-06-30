@@ -135,52 +135,49 @@ export default function RegisterOtpPage({
     }
   };
 
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
+ const handleVerifyOtp = async (e: React.FormEvent) => {
+  e.preventDefault();
 
-    const otpString = otp.join("");
-    if (otpString.length < 5) {
-      setOtpError(t("auth.otpMinDigits"));
+  const otpString = otp.join("");
+  if (otpString.length < 5) {
+    setOtpError(t("auth.otpMinDigits"));
+    return;
+  }
+
+  setIsVerifying(true);
+  setOtpError(null);
+
+  try {
+    const verified = await verifyPhoneOtp(phone, otpString, name);
+
+    if (!verified.success) {
+      setOtpError(verified.message || t("auth.verifyFailed"));
       return;
     }
 
-    setIsVerifying(true);
-    setOtpError(null);
-
-    try {
-      const verified = await verifyPhoneOtp(phone, otpString);
-
-      if (!verified.success) {
-        setOtpError(verified.message || t("auth.verifyFailed"));
-        setIsVerifying(false);
-        return;
-      }
-
-      const token = verified.token || localStorage.getItem("TUTORKU_token");
-
-      if (token) {
-        if (!localStorage.getItem("TUTORKU_token")) {
-          localStorage.setItem("TUTORKU_token", token);
-        }
-
-        const role = verified.role || "siswa";
-        if (role === "tutor") {
-          navigate("dashboard-tutor");
-        } else {
-          navigate("dashboard-siswa");
-        }
-      } else {
-        setOtpError("Token tidak ditemukan. Silakan login ulang.");
-      }
-    } catch (err: any) {
-      console.error("Verification error:", err);
-      const secs = parseCooldownFromMessage(err?.message);
-      if (secs) setCountdown(secs);
-      setOtpError(err.message || t("auth.verifyFailed"));
-    } finally {
-      setIsVerifying(false);
+    const token = verified.token ?? localStorage.getItem("TUTORKU_token");
+    if (!token) {
+      setOtpError("Token tidak ditemukan. Silakan login ulang.");
+      return;
     }
-  };
+
+    localStorage.setItem("TUTORKU_token", token);
+
+    const role = verified.role || "siswa";
+    if (role === "tutor") {
+      navigate("dashboard-tutor");
+    } else {
+      navigate("dashboard-siswa");
+    }
+  } catch (err: any) {
+    console.error("Verification error:", err);
+    const secs = parseCooldownFromMessage(err?.message);
+    if (secs) setCountdown(secs);
+    setOtpError(err.message || t("auth.verifyFailed"));
+  } finally {
+    setIsVerifying(false);
+  }
+};
 
   const handleResendOtp = async () => {
     if (countdown > 0 || isResending) return;

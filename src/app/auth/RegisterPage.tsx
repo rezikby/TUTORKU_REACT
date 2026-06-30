@@ -73,57 +73,54 @@ export default function RegisterPage({
   }, [otp]);
 
   const handlePhoneRegister = async () => {
-    if (!phone.trim() || phone.length < 10) {
-      setRegisterError(t("auth.phoneMinDigits"));
-      return;
-    }
+  if (!phone.trim() || phone.length < 10) {
+    setRegisterError(t("auth.phoneMinDigits"));
+    return;
+  }
 
-    if (!name.trim()) {
-      setRegisterError(t("auth.nameRequired"));
-      return;
-    }
+  if (!name.trim()) {
+    setRegisterError(t("auth.nameRequired"));
+    return;
+  }
 
-    const success = await sendPhoneOtp(phone);
-    if (success) {
-      setStep("otp");
-      setOtpError(null);
-    }
-  };
+  const success = await registerWithPhone(phone, name);
+  if (success) {
+    setStep("otp");
+    setOtpError(null);
+  }
+};
 
   // ============ PERBAIKI handleVerifyOtp ============
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
+ const handleVerifyOtp = async (e: React.FormEvent) => {
+  e.preventDefault();
 
-    if (otp.length < 5) {
-      setOtpError(t("auth.otpMinDigits"));
+  if (otp.length < 5) {
+    setOtpError(t("auth.otpMinDigits"));
+    return;
+  }
+
+  setIsVerifying(true);
+
+  try {
+    const verified = await verifyPhoneOtp(phone, otp);
+    if (!verified.success) {
+      setOtpError(verified.message || t("auth.verifyFailed"));
       return;
     }
 
-    setIsVerifying(true);
-
-    try {
-      const verified = await verifyPhoneOtp(phone, otp);
-      if (!verified.success) {
-        setOtpError(verified.message || t("auth.verifyFailed"));
-        setIsVerifying(false);
-        return;
-      }
-
-      // Step 2: Register user
-      const registered = await registerWithPhone(phone, name);
-      if (registered) {
-        // Navigasi akan terjadi di registerWithPhone
-        const token = localStorage.getItem("TUTORKU_token");
-        if (token) {
-          navigate("dashboard-siswa");
-        }
-      }
-    } catch (error: any) {
-      setOtpError(error.message || t("auth.verifyFailed"));
-    } finally {
-      setIsVerifying(false);
+    if (verified.role === "tutor") {
+      navigate("admin");
+    } else if (verified.role === "admin") {
+      navigate("platform-admin");
+    } else {
+      navigate("dashboard-siswa");
     }
-  };
+  } catch (error: any) {
+    setOtpError(error.message || t("auth.verifyFailed"));
+  } finally {
+    setIsVerifying(false);
+  }
+};
 
   const handleResendOtp = async () => {
     if (countdown > 0) return;

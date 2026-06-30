@@ -241,6 +241,8 @@ type LoginResult = {
   phone?: string;
   message?: string;
   role?: string;
+  token?: string;
+  user?: User;
 };
 
 const API_BASE =
@@ -824,64 +826,65 @@ export default function App() {
     }
   };
 
-  const registerWithPhone = async (phone: string, name: string) => {
-    setLoading((prev) => ({ ...prev, auth: true }));
-    try {
-      localStorage.removeItem("TUTORKU_token");
-      setToken(null);
-      setUser(null);
+ const registerWithPhone = async (phone: string, name: string) => {
+  setLoading((prev) => ({ ...prev, auth: true }));
+  try {
+    localStorage.removeItem("TUTORKU_token");
+    setToken(null);
+    setUser(null);
 
-      const csrfToken = getCsrfToken();
-      const headers: HeadersInit = {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      };
-      if (csrfToken) {
-        headers["X-XSRF-TOKEN"] = csrfToken;
-      }
-
-      const response = await fetch(`${API_BASE}/auth/register`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          name: name.trim(),
-          phone: phone.trim(),
-        }),
-        credentials: "include",
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        let errorMessage = "Registrasi gagal";
-        if (data.errors) {
-          const errors = Object.values(data.errors).flat();
-          errorMessage = errors.join(", ");
-        } else if (data.message) {
-          errorMessage = data.message;
-        }
-        throw new Error(errorMessage);
-      }
-
-      const newToken = data.token;
-      if (newToken) {
-        localStorage.setItem("TUTORKU_token", newToken);
-        setToken(newToken);
-        setUser(data.user);
-        toastSuccess("Registrasi berhasil! Selamat datang.");
-        navigate("dashboard-siswa");
-        return true;
-      }
-
-      return false;
-    } catch (error: any) {
-      console.error("❌ Error registerWithPhone:", error);
-      toastError(error.message || "Registrasi gagal. Silakan coba lagi.");
-      return false;
-    } finally {
-      setLoading((prev) => ({ ...prev, auth: false }));
+    const csrfToken = getCsrfToken();
+    const headers: HeadersInit = {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    };
+    if (csrfToken) {
+      headers["X-XSRF-TOKEN"] = csrfToken;
     }
-  };
+
+    const response = await fetch(`${API_BASE}/auth/register`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        name: name.trim(),
+        phone: phone.trim(),
+      }),
+      credentials: "include",
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      let errorMessage = "Registrasi gagal";
+      if (data.errors) {
+        const errors = Object.values(data.errors).flat();
+        errorMessage = errors.join(", ");
+      } else if (data.message) {
+        errorMessage = data.message;
+      }
+      throw new Error(errorMessage);
+    }
+
+    const newToken = data.token;
+    if (newToken) {
+      localStorage.setItem("TUTORKU_token", newToken);
+      setToken(newToken);
+      setUser(data.user);
+      toastSuccess("Registrasi berhasil! Selamat datang.");
+      navigate("dashboard-siswa");
+      return true;
+    }
+
+    // OTP sudah dikirim, menunggu verifikasi
+    return true;
+  } catch (error: any) {
+    console.error("❌ Error registerWithPhone:", error);
+    toastError(error.message || "Registrasi gagal. Silakan coba lagi.");
+    return false;
+  } finally {
+    setLoading((prev) => ({ ...prev, auth: false }));
+  }
+};
 
   const loginWithPhone = async (phone: string): Promise<LoginResult> => {
     setLoading((prev) => ({ ...prev, auth: true }));
@@ -980,45 +983,57 @@ export default function App() {
   };
 
   const verifyPhoneOtp = async (
-    phone: string,
-    otp: string,
-  ): Promise<LoginResult> => {
-    setLoading((prev) => ({ ...prev, auth: true }));
-    try {
-      const csrfToken = getCsrfToken();
-      const headers: HeadersInit = {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      };
-      if (csrfToken) {
-        headers["X-XSRF-TOKEN"] = csrfToken;
-      }
-
-      const response = await fetch(`${API_BASE}/auth/phone/verify-otp`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          phone,
-          code: otp,
-        }),
-        credentials: "include",
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Verifikasi OTP gagal");
-      }
-
-      return { success: true, phone: data.phone ?? phone };
-    } catch (error: any) {
-      console.error("Error verifyPhoneOtp:", error);
-      toastError(error.message || "Kode OTP tidak valid. Silakan coba lagi.");
-      return { success: false, message: error.message };
-    } finally {
-      setLoading((prev) => ({ ...prev, auth: false }));
+  phone: string,
+  otp: string,
+): Promise<LoginResult> => {
+  setLoading((prev) => ({ ...prev, auth: true }));
+  try {
+    const csrfToken = getCsrfToken();
+    const headers: HeadersInit = {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    };
+    if (csrfToken) {
+      headers["X-XSRF-TOKEN"] = csrfToken;
     }
-  };
+
+    const response = await fetch(`${API_BASE}/auth/phone/verify-otp`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        phone,
+        code: otp,
+      }),
+      credentials: "include",
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Verifikasi OTP gagal");
+    }
+
+    if (data.token) {
+      setToken(data.token);
+      localStorage.setItem("TUTORKU_token", data.token);
+      setUser(data.user);
+    }
+
+    return {
+      success: true,
+      phone: data.phone ?? phone,
+      role: data.role,
+      token: data.token,
+      user: data.user,
+    };
+  } catch (error: any) {
+    console.error("Error verifyPhoneOtp:", error);
+    toastError(error.message || "Kode OTP tidak valid. Silakan coba lagi.");
+    return { success: false, message: error.message };
+  } finally {
+    setLoading((prev) => ({ ...prev, auth: false }));
+  }
+};
 
   const startGoogleLogin = async (role: "student" | "tutor" = "student") => {
     try {
