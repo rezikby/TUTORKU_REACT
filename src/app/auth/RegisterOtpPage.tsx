@@ -1,6 +1,12 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2, ArrowRight, AlertCircle, Shield, CheckCircle } from "lucide-react";
+import {
+  Loader2,
+  ArrowRight,
+  AlertCircle,
+  Shield,
+  CheckCircle,
+} from "lucide-react";
 
 type LoginResult = {
   success: boolean;
@@ -17,7 +23,10 @@ interface RegisterOtpPageProps {
   name: string;
   navigate: (page: string) => void;
   verifyPhoneOtp: (phone: string, otp: string) => Promise<LoginResult>;
-  registerWithPhone: (phone: string, name: string) => Promise<{
+  registerWithPhone: (
+    phone: string,
+    name: string,
+  ) => Promise<{
     success: boolean;
     token?: string;
     role?: string;
@@ -68,6 +77,16 @@ export default function RegisterOtpPage({
     if (otpError) setOtpError(null);
   }, [otp]);
 
+  // If parent passed an `error` that contains cooldown info, parse it
+  useEffect(() => {
+    if (error) {
+      const secs = parseCooldownFromMessage(error);
+      if (secs && countdown <= 0) {
+        setCountdown(secs);
+      }
+    }
+  }, [error]);
+
   // Auto-focus first input on mount
   useEffect(() => {
     if (inputRefs.current[0]) {
@@ -75,9 +94,18 @@ export default function RegisterOtpPage({
     }
   }, []);
 
+  const parseCooldownFromMessage = (msg?: string | null): number | null => {
+    if (!msg) return null;
+    // match first number, integer or float
+    const m = msg.match(/(\d+\.?\d*)/);
+    if (!m) return null;
+    const val = Math.ceil(parseFloat(m[1]));
+    return val > 0 ? val : 1;
+  };
+
   const handleChange = (index: number, value: string) => {
     if (value.length > 1) return;
-    
+
     const newOtp = [...otp];
     newOtp[index] = value.replace(/\D/g, "");
     setOtp(newOtp);
@@ -88,11 +116,14 @@ export default function RegisterOtpPage({
     }
   };
 
-  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (
+    index: number,
+    e: React.KeyboardEvent<HTMLInputElement>,
+  ) => {
     if (e.key === "Backspace" && !otp[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
-    
+
     // Submit on Enter
     if (e.key === "Enter" && otp.join("").length === 5) {
       e.preventDefault();
@@ -104,7 +135,7 @@ export default function RegisterOtpPage({
     e.preventDefault();
     const pastedData = e.clipboardData.getData("text").slice(0, 5);
     const digits = pastedData.split("").filter((char) => /^\d$/.test(char));
-    
+
     if (digits.length > 0) {
       const newOtp = [...otp];
       digits.forEach((digit, i) => {
@@ -113,7 +144,7 @@ export default function RegisterOtpPage({
         }
       });
       setOtp(newOtp);
-      
+
       // Focus ke input terakhir yang terisi
       const lastIndex = Math.min(digits.length - 1, 4);
       inputRefs.current[lastIndex]?.focus();
@@ -131,11 +162,11 @@ export default function RegisterOtpPage({
 
     setIsVerifying(true);
     setOtpError(null);
-    
+
     try {
       // Step 1: Verify OTP
       const verified = await verifyPhoneOtp(phone, otpString);
-      
+
       if (!verified.success) {
         setOtpError(verified.message || t("auth.verifyFailed"));
         setIsVerifying(false);
@@ -144,22 +175,30 @@ export default function RegisterOtpPage({
 
       // Step 2: Register user
       const registrationResult = await registerWithPhone(phone, name);
-      
+
       if (!registrationResult.success) {
+        // If server message contains cooldown seconds, set countdown
+        const secs = parseCooldownFromMessage(
+          registrationResult.message || undefined,
+        );
+        if (secs) {
+          setCountdown(secs);
+        }
         setOtpError(registrationResult.message || t("auth.registerFailed"));
         setIsVerifying(false);
         return;
       }
 
       // Step 3: Save token and redirect
-      const token = registrationResult.token || localStorage.getItem("TUTORKU_token");
-      
+      const token =
+        registrationResult.token || localStorage.getItem("TUTORKU_token");
+
       if (token) {
         // Save token if not already saved
         if (!localStorage.getItem("TUTORKU_token")) {
           localStorage.setItem("TUTORKU_token", token);
         }
-        
+
         // Navigate berdasarkan role
         const role = registrationResult.role || "siswa";
         if (role === "tutor") {
@@ -173,6 +212,8 @@ export default function RegisterOtpPage({
       }
     } catch (err: any) {
       console.error("Verification error:", err);
+      const secs = parseCooldownFromMessage(err?.message);
+      if (secs) setCountdown(secs);
       setOtpError(err.message || t("auth.verifyFailed"));
     } finally {
       setIsVerifying(false);
@@ -181,28 +222,37 @@ export default function RegisterOtpPage({
 
   const handleResendOtp = async () => {
     if (countdown > 0 || isResending) return;
-    
+
     setIsResending(true);
     setResendSuccess(false);
     setOtpError(null);
-    
+
     try {
       const result = await sendPhoneOtp(phone);
-      
+
       if (result.success) {
         setCountdown(60);
         setOtp(["", "", "", "", ""]);
         setResendSuccess(true);
         inputRefs.current[0]?.focus();
-        
+
         // Auto-hide success message after 3 seconds
         setTimeout(() => {
           setResendSuccess(false);
         }, 3000);
       } else {
+        // if message contains seconds, set countdown
+        const secs = parseCooldownFromMessage(result.message);
+        if (secs) {
+          setCountdown(secs);
+        }
         setOtpError(result.message || "Gagal mengirim ulang OTP");
       }
     } catch (err: any) {
+      const secs = parseCooldownFromMessage(err?.message);
+      if (secs) {
+        setCountdown(secs);
+      }
       setOtpError(err.message || "Gagal mengirim ulang OTP");
     } finally {
       setIsResending(false);
@@ -232,18 +282,22 @@ export default function RegisterOtpPage({
           <h2 className="text-4xl font-bold text-white leading-tight">
             {t("auth.brandTagline")}
           </h2>
-          <p className="text-white/70 text-lg">{t("auth.registerMissionText")}</p>
+          <p className="text-white/70 text-lg">
+            {t("auth.registerMissionText")}
+          </p>
         </div>
         <div className="relative z-10">
-          <p className="text-white/50 text-sm">© 2024 TUTORKU. Hak cipta dilindungi.</p>
+          <p className="text-white/50 text-sm">
+            © 2024 TUTORKU. Hak cipta dilindungi.
+          </p>
         </div>
       </div>
 
       {/* Right Side - OTP Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center px-4 sm:px-6 py-12">
         <div className="w-full max-w-md">
-          <button 
-            onClick={onBack} 
+          <button
+            onClick={onBack}
             className="flex items-center gap-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white transition-all mb-6"
           >
             <ArrowRight size={18} className="rotate-180" />
@@ -311,9 +365,9 @@ export default function RegisterOtpPage({
               </p>
             </div>
 
-            <button 
-              type="submit" 
-              disabled={isVerifying || loading || otp.join("").length < 5} 
+            <button
+              type="submit"
+              disabled={isVerifying || loading || otp.join("").length < 5}
               className="w-full py-3 bg-[#2563EB] text-white font-medium rounded-lg hover:bg-[#1D4ED8] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isVerifying || loading ? (
@@ -330,10 +384,10 @@ export default function RegisterOtpPage({
             </button>
 
             <div className="flex items-center justify-between pt-2">
-              <button 
-                type="button" 
-                onClick={handleResendOtp} 
-                disabled={countdown > 0 || loading || isResending} 
+              <button
+                type="button"
+                onClick={handleResendOtp}
+                disabled={countdown > 0 || loading || isResending}
                 className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isResending ? (
