@@ -39,7 +39,7 @@ export default function AiPopup({ compact }: { compact?: boolean } = {}) {
           Authorization: `Bearer ${OPENROUTER_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "auto",
+          model: "cohere/north-mini-code:free",
           messages: [
             {
               role: "system",
@@ -101,7 +101,7 @@ export default function AiPopup({ compact }: { compact?: boolean } = {}) {
           Authorization: `Bearer ${OPENROUTER_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "auto",
+          model: "cohere/north-mini-code:free",
           messages: [
             {
               role: "system",
