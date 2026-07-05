@@ -2,9 +2,21 @@
 import { useState, useEffect, useRef, type ChangeEvent } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "../../i18n";
-import { 
-  Search, ChevronLeft, Paperclip, Send, Check, CheckCheck, 
-  FileText, Loader2, User, MessageCircle, Smile, Trash2, X
+import twemoji from "twemoji";
+import {
+  Search,
+  ChevronLeft,
+  Paperclip,
+  Send,
+  Check,
+  CheckCheck,
+  FileText,
+  Loader2,
+  User,
+  MessageCircle,
+  Smile,
+  Trash2,
+  X,
 } from "lucide-react";
 import { getEcho } from "../lib/echo";
 import { toastSuccess, toastError } from "../lib/swal";
@@ -22,7 +34,7 @@ type Conversation = {
 };
 
 type Message = {
-  id: number;
+  id: string | number;
   sender_id: number;
   type: "text" | "image" | "file" | "voice";
   content?: string | null;
@@ -54,6 +66,15 @@ const handleTestNotification = async (conversation?: Conversation | null) => {
   });
 };
 
+const getMessagePreview = (message: any, t?: (key: string, options?: any) => string) => {
+  if (!message) return null;
+  if (message.is_deleted) return t ? t("chat.deletedMessage") : "[Pesan dihapus]";
+  if (message.type === "image") return t ? t("chat.sendImage") : "[Gambar]";
+  if (message.type === "file") return t ? t("chat.sendFile") : "[File]";
+  if (message.type === "voice") return t ? t("chat.sendVoice") : "[Suara]";
+  return message.content ?? null;
+};
+
 const normalizeConversation = (item: any, t?: (key: string, options?: any) => string): Conversation => {
   const otherUser = item.other_user ?? item.with_user;
   return {
@@ -64,8 +85,8 @@ const normalizeConversation = (item: any, t?: (key: string, options?: any) => st
       avatar: otherUser?.avatar ?? null,
       role: otherUser?.role ?? "user",
     },
-    last_message_at: item.last_message_at,
-    last_message_preview: item.last_message?.content ?? item.last_message_preview ?? null,
+    last_message_at: item.last_message_at ?? item.last_message?.created_at,
+    last_message_preview: getMessagePreview(item.last_message ?? item.last_message_preview, t) ?? item.last_message_preview ?? null,
     unread_count: item.unread_count ?? 0,
   };
 };
@@ -92,25 +113,125 @@ export function ChatPage({
   const [chatInput, setChatInput] = useState("");
   const [isOtherTyping, setIsOtherTyping] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  const normalizeMessageId = (id: any) => (id === null || id === undefined ? id : String(id));
+  const normalizeMessage = (message: any): Message => ({
+    ...message,
+    id: normalizeMessageId(message.id),
+    content: message.content ?? null,
+    file_url: message.file_url ?? null,
+    file_name: message.file_name ?? null,
+  });
+  const getMessageKey = (message: Message) => {
+    const id = normalizeMessageId(message.id);
+    if (id !== null && id !== undefined) return `id:${id}`;
+    return `content:${message.content ?? ""}|sender:${message.sender_id}|created_at:${message.created_at}`;
+  };
+  const addMessageIfUnique = (message: Message) => {
+    setMessages((prev) => {
+      const normalized = normalizeMessage(message);
+      const key = getMessageKey(normalized);
+      const exists = prev.some((msg) => getMessageKey(normalizeMessage(msg)) === key);
+      return exists ? prev : [...prev, normalized];
+    });
+  };
+  const upsertMessage = (message: Message) => {
+    setMessages((prev) => {
+      const normalized = normalizeMessage(message);
+      const key = getMessageKey(normalized);
+      const existingIndex = prev.findIndex((msg) => getMessageKey(normalizeMessage(msg)) === key);
+      if (existingIndex === -1) {
+        return [...prev, normalized];
+      }
+      const updated = [...prev];
+      updated[existingIndex] = { ...updated[existingIndex], ...normalized };
+      return updated;
+    });
+  };
   const [sending, setSending] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const chatInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const channelRef = useRef<any>(null);
+  const sendLockRef = useRef(false);
   const [pendingUpload, setPendingUpload] = useState<{ file: File; previewUrl?: string | null; isImage: boolean } | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | number | null>(null);
   const [editingText, setEditingText] = useState<string>("");
-  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; messageId: number | null }>({ open: false, messageId: null });
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; messageId: string | number | null }>({ open: false, messageId: null });
   const [searchQuery, setSearchQuery] = useState("");
+
+  const sortConversations = (items: Conversation[]) =>
+    [...items].sort((a, b) => {
+      const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+      const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+      return bTime - aTime;
+    });
+
+  const shouldUpdatePreview = (current: Conversation, incomingCreatedAt?: string | null) => {
+    if (!incomingCreatedAt) return true;
+    const currentTime = current.last_message_at ? new Date(current.last_message_at).getTime() : 0;
+    const incomingTime = new Date(incomingCreatedAt).getTime();
+    return incomingTime >= currentTime;
+  };
+
+  const isEmojiOnly = (value?: string | null) => {
+    if (!value) return false;
+
+    return value
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .every((token) => /^(?:\p{Extended_Pictographic}|\uFE0F|\u200D)+$/u.test(token));
+  };
+
+  const TWEMOJI_BASE = "https://twemoji.maxcdn.com/v/latest/72x72/";
+
+  const renderEmojiContent = (value?: string | null, size = "h-10 w-10") => {
+    if (!value) return null;
+
+    const tokens = value.trim().split(/\s+/).filter(Boolean);
+    return (
+      <div className="flex flex-wrap items-center justify-center gap-1">
+        {tokens.map((token, index) => (
+          <img
+            key={`${token}-${index}`}
+            src={`${TWEMOJI_BASE}${twemoji.convert.toCodePoint(token)}.png`}
+            alt={token}
+            className={`${size} object-contain`}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  const updateConversationPreview = (conversationId: number, preview: string | null, createdAt: string) => {
+    setConversations((prev) =>
+      sortConversations(
+        prev.map((c) =>
+          c.id === conversationId && shouldUpdatePreview(c, createdAt)
+            ? { ...c, last_message_preview: preview, last_message_at: createdAt }
+            : c,
+        ),
+      ),
+    );
+    setActiveConvo((prev) =>
+      prev && prev.id === conversationId && shouldUpdatePreview(prev, createdAt)
+        ? { ...prev, last_message_preview: preview, last_message_at: createdAt }
+        : prev,
+    );
+  };
 
   const loadConversations = async () => {
     try {
       const data = await apiFetch("/chat/conversations");
       const list = data.data ?? data;
-      const normalized = Array.isArray(list) ? list.map((item) => normalizeConversation(item, t)) : [];
+      const normalized = Array.isArray(list)
+        ? sortConversations(list.map((item) => normalizeConversation(item, t)))
+        : [];
       setConversations(normalized);
       return normalized;
     } catch (error) {
@@ -169,16 +290,15 @@ export function ChatPage({
 
     channel.listen(".message.sent", async (e: any) => {
       const incoming = e.message ?? e;
-      const normalized = { ...incoming, content: incoming.content ?? null, file_url: incoming.file_url ?? null, file_name: incoming.file_name ?? null };
-      setMessages((prev) => {
-        // Hindari duplikasi: jangan tambah jika pesan dengan ID yang sama sudah ada
-        if (prev.some((msg) => msg.id === normalized.id)) return prev;
-        return [...prev, normalized];
-      });
+      const normalized = normalizeMessage(incoming);
+      upsertMessage(normalized);
       setIsOtherTyping(false);
       console.debug("[chat] received message via Echo", { event: e, normalized });
-      const senderName = e.sender_name || e.user?.name || activeConvo.other_user.name || t("chat.newMessage");
+
       const preview = normalized.content || (normalized.type === "image" ? t("chat.sendImage") : normalized.type === "file" ? t("chat.sendFile") : t("chat.newMessage"));
+      updateConversationPreview(activeConvo.id, preview, normalized.created_at);
+
+      const senderName = e.sender_name || e.user?.name || activeConvo.other_user.name || t("chat.newMessage");
       try {
         if (String(normalized.sender_id) !== String(currentUserId)) {
           console.debug("[chat] triggering chat notification for incoming message", { senderId: normalized.sender_id, currentUserId });
@@ -225,28 +345,36 @@ export function ChatPage({
 
       // Subscribe to each conversation to get realtime updates
       conversations.forEach((convo) => {
+        if (activeConvo?.id === convo.id) return;
+
         const channel = echo.private(`chat.${convo.id}`);
 
         const handler = (e: any) => {
           const incoming = e.message ?? e;
           console.debug("[chat-realtime] conversation list update", { convoId: convo.id, incoming });
-          
-          // Update the conversation in the list with new message info
+
           setConversations((prev) =>
-            prev.map((c) =>
-              c.id === convo.id
-                ? {
-                    ...c,
-                    last_message_preview: incoming.content || (incoming.type === "image" ? t("chat.sendImage") : incoming.type === "file" ? t("chat.sendFile") : t("chat.newMessage")),
-                    last_message_at: incoming.created_at,
-                    // Increment unread count if message is from other user and not currently active
-                    unread_count:
-                      String(incoming.sender_id) !== String(currentUserId) && activeConvo?.id !== convo.id
-                        ? (c.unread_count || 0) + 1
-                        : 0,
-                  }
-                : c
-            )
+            sortConversations(
+              prev.map((c) =>
+                c.id === convo.id && shouldUpdatePreview(c, incoming.created_at)
+                  ? {
+                      ...c,
+                      last_message_preview:
+                        incoming.content ||
+                        (incoming.type === "image"
+                          ? t("chat.sendImage")
+                          : incoming.type === "file"
+                          ? t("chat.sendFile")
+                          : t("chat.newMessage")),
+                      last_message_at: incoming.created_at,
+                      unread_count:
+                        String(incoming.sender_id) !== String(currentUserId) && activeConvo?.id !== convo.id
+                          ? (c.unread_count || 0) + 1
+                          : 0,
+                    }
+                  : c,
+              ),
+            ),
           );
         };
 
@@ -288,28 +416,34 @@ export function ChatPage({
     typingTimeoutRef.current = setTimeout(() => notifyTyping(false), 1500);
   };
 
+  const addEmoji = (emoji: string) => {
+    setChatInput((prev) => prev + emoji);
+    setShowEmojiPicker(false);
+    setTimeout(() => chatInputRef.current?.focus(), 0);
+  };
+
   const sendMessage = async () => {
-    if (!chatInput.trim() || !activeConvo || sending) return;
+    if (!chatInput.trim() || !activeConvo || sending || sendLockRef.current) return;
+    sendLockRef.current = true;
     setSending(true);
     const text = chatInput;
     setChatInput("");
     try {
-      const data = await apiFetch(`/chat/conversations/${activeConvo.id}/messages`, {
+      const result = await apiFetch(`/chat/conversations/${activeConvo.id}/messages`, {
         method: "POST",
         body: JSON.stringify({ type: "text", content: text }),
       });
-      setMessages((prev) => [...prev, data.data ?? data]);
+      const newMessage = result?.data ?? result;
+      const createdAt = newMessage?.created_at ?? new Date().toISOString();
       notifyTyping(false);
+      const preview = text;
+      updateConversationPreview(activeConvo.id, preview, createdAt);
     } catch (error: any) {
       toastError(error.message || t("chat.sendMessageFailed"));
     } finally {
       setSending(false);
+      sendLockRef.current = false;
     }
-  };
-
-  const addEmoji = (emoji: string) => {
-    setChatInput((prev) => prev + emoji);
-    setShowEmojiPicker(false);
   };
 
   const handleFileSelected = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -386,8 +520,14 @@ export function ChatPage({
         xhr.send(formData);
       });
 
-      // Hindari duplikasi: cek ID sebelum menambah\n      const newMsgs = Array.isArray(res?.data) ? res.data : [res];\n      setMessages((prev) => {\n        const idsExist = new Set(prev.map(m => m.id));\n        const toAdd = newMsgs.filter(msg => !idsExist.has(msg.id));\n        return [...prev, ...toAdd];\n      });\n      toastSuccess(isImage ? \"Gambar terkirim.\" : \"Dokumen terkirim.\");
-    } catch (error: any) {
+            const newMsgs = Array.isArray(res?.data) ? res.data : [res];
+      newMsgs.forEach((msg: any) => addMessageIfUnique(msg));
+      const previewText = isImage ? t("chat.sendImage") : t("chat.sendFile");
+      const createdAt = newMsgs[0]?.created_at ?? new Date().toISOString();
+      if (activeConvo?.id) {
+        updateConversationPreview(activeConvo.id, previewText, createdAt);
+      }
+      toastSuccess(isImage ? "Gambar terkirim." : "Dokumen terkirim.");} catch (error: any) {
       setUploadError(error.message || "Gagal mengunggah file. Pastikan format & ukuran file sesuai (maks 10MB).");
       toastError(uploadError || error.message || "Gagal mengunggah file.");
     } finally {
@@ -398,7 +538,7 @@ export function ChatPage({
     }
   };
 
-  const openDeleteConfirm = (messageId: number) => {
+  const openDeleteConfirm = (messageId: string | number) => {
     setDeleteConfirm({ open: true, messageId });
   };
 
@@ -407,6 +547,7 @@ export function ChatPage({
     if (!messageId) return;
 
     const previousMessage = messages.find((msg) => msg.id === messageId);
+    const isLastMessage = messages[messages.length - 1]?.id === messageId;
 
     if (scope === "me") {
       setMessages((prev) =>
@@ -424,6 +565,14 @@ export function ChatPage({
             : msg,
         ),
       );
+
+      if (isLastMessage && activeConvo?.id) {
+        updateConversationPreview(
+          activeConvo.id,
+          t("chat.deletedMessage"),
+          previousMessage?.created_at ?? new Date().toISOString(),
+        );
+      }
     }
 
     setDeleteConfirm({ open: false, messageId: null });
@@ -531,7 +680,13 @@ export function ChatPage({
                           {c.last_message_at && <span className="flex-shrink-0 text-[9px] xs:text-[10px] text-gray-400">{formatTime(c.last_message_at)}</span>}
                         </div>
                         <div className="flex items-center justify-between gap-1">
-                          <p className="truncate text-[11px] xs:text-xs text-gray-400">{c.last_message_preview || t("chat.noMessages")}</p>
+                          <div className="truncate text-[11px] xs:text-xs text-gray-400">
+                            {isEmojiOnly(c.last_message_preview) ? (
+                              renderEmojiContent(c.last_message_preview, "h-6 w-6")
+                            ) : (
+                              <p className="truncate">{c.last_message_preview || t("chat.noMessages")}</p>
+                            )}
+                          </div>
                           {!!c.unread_count && (
                             <span className="flex-shrink-0 bg-blue-500 px-1 xs:px-1.5 py-0.5 text-[9px] xs:text-[10px] font-bold text-white rounded">
                               {c.unread_count > 9 ? "9+" : c.unread_count}
@@ -641,16 +796,25 @@ export function ChatPage({
                                   </div>
                                 ) : m.is_deleted && m.deleted_for === "all" ? (
                                   <p className="italic text-xs text-gray-300">{t("chat.deletedMessage")}</p>
+                                ) : isEmojiOnly(m.content) ? (
+                                  <div className="flex flex-wrap items-center justify-center gap-1">
+                                    {renderEmojiContent(m.content)}
+                                  </div>
                                 ) : (
                                   m.content && <p className="whitespace-pre-wrap break-words text-xs xs:text-sm">{m.content}</p>
                                 )}
                               </div>
                               <div className={`mt-0.5 xs:mt-1 flex items-center gap-0.5 px-0.5 xs:px-1 ${isMe ? "justify-end" : "justify-start"}`}>
                                 <span className="text-[9px] xs:text-[10px] text-gray-400">{formatTime(m.created_at)}</span>
-                                {isMe && m.read_at && <CheckCheck size={10} className="text-blue-400" />}
+                                {isMe && (
+                                  <CheckCheck
+                                    size={10}
+                                    className={m.read_at ? "text-blue-400" : "text-gray-400"}
+                                  />
+                                )}
                               </div>
                               {!isDeleted && !isEditing && (
-                                <div className={`absolute top-0 ${isMe ? "left-0 -translate-x-full pr-1" : "right-0 translate-x-full pl-1"} flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100`}>
+                                <div className={`absolute top-0 ${isMe ? "left-0 -translate-x-full pr-1" : "right-0 translate-x-full pl-1"} flex items-center gap-0.5 opacity-100 md:opacity-0 transition-opacity md:group-hover:opacity-100`}>
                                   {isMe && m.type === "text" && (
                                     <button onClick={startEditLocal} className="p-1 text-gray-500" title={t("chat.edit")}>
                                       <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
@@ -715,9 +879,22 @@ export function ChatPage({
                     </div>
                   <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileSelected} accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar" />
                   <div className="flex flex-1 items-end overflow-hidden border border-gray-200 bg-white rounded">
-                    <input value={chatInput} onChange={(e) => handleInputChange(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendMessage(); } }} placeholder={t("chat.messagePlaceholder")} disabled={sending} className="flex-1 bg-transparent px-2.5 xs:px-4 py-1.5 xs:py-2.5 text-xs xs:text-sm text-gray-900 outline-none placeholder:text-gray-400" />
+                    <input
+                      ref={chatInputRef}
+                      value={chatInput}
+                      onChange={(e) => handleInputChange(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          void sendMessage();
+                        }
+                      }}
+                      placeholder={t("chat.messagePlaceholder")}
+                      disabled={sending}
+                      className="flex-1 bg-transparent px-2.5 xs:px-4 py-1.5 xs:py-2.5 text-xs xs:text-sm text-gray-900 outline-none placeholder:text-gray-400"
+                    />
                   </div>
-                  <button onClick={() => void sendMessage()} disabled={sending || !chatInput.trim()} className="mb-0.5 xs:mb-1 bg-blue-600 p-1.5 xs:p-2.5 text-white rounded disabled:cursor-not-allowed disabled:opacity-40"><Send size={14} className="xs:w-4 xs:h-4" /></button>
+                  <button type="button" onClick={() => void sendMessage()} disabled={sending || !chatInput.trim()} className="mb-0.5 xs:mb-1 bg-blue-600 p-1.5 xs:p-2.5 text-white rounded disabled:cursor-not-allowed disabled:opacity-40"><Send size={14} className="xs:w-4 xs:h-4" /></button>
                 </div>
                 {showEmojiPicker && (
                   <div className="mt-1.5 xs:mt-2 grid grid-cols-5 gap-0.5 border border-gray-200 bg-white p-1.5 xs:p-2 rounded">

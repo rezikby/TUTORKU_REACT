@@ -8,8 +8,11 @@ import { Textarea } from "../components/ui/textarea";
 
 const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
 const API_BASE = (env.VITE_API_URL ?? "http://localhost:8000/api").replace(/\/?$/, "");
+const OPENROUTER_API_KEY = (env.VITE_OPENROUTER_API_KEY || env.OPENROUTER_API_KEY || "").trim();
+const OPENROUTER_MODEL = (env.VITE_OPENROUTER_MODEL || env.OPENROUTER_MODEL || "mistral-7b-instruct").trim();
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const GROQ_API_KEY = (env.VITE_GROQ_API_KEY || env.GROQ_API_KEY || "").trim();
-const GROQ_MODEL = (env.VITE_GROQ_MODEL || env.GROQ_MODEL || "mixtral-8x7b-32768").trim();
+const GROQ_MODEL = (env.VITE_GROQ_MODEL || env.GROQ_MODEL || "openai/gpt-oss-20b").trim();
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 type ChatMessage = {
@@ -33,7 +36,13 @@ export default function AiPopup({ compact }: { compact?: boolean } = {}) {
 
   const callAi = async (prompt: string) => {
     const isGroqConfigured = Boolean(GROQ_API_KEY);
-    const endpoint = isGroqConfigured ? GROQ_URL : `${API_BASE}/ai/chat`;
+    const isOpenRouterConfigured = Boolean(OPENROUTER_API_KEY) && !isGroqConfigured;
+    const endpoint = isGroqConfigured
+      ? GROQ_URL
+      : isOpenRouterConfigured
+      ? OPENROUTER_URL
+      : `${API_BASE}/ai/chat`;
+
     const payload = isGroqConfigured
       ? {
           model: GROQ_MODEL,
@@ -47,22 +56,43 @@ export default function AiPopup({ compact }: { compact?: boolean } = {}) {
           temperature: 0.7,
           max_tokens: 600,
         }
+      : isOpenRouterConfigured
+      ? {
+          model: OPENROUTER_MODEL,
+          messages: [
+            {
+              role: "system",
+              content: "You are a helpful assistant for TUTORKU.",
+            },
+            { role: "user", content: prompt },
+          ],
+          temperature: 0.7,
+          max_tokens: 600,
+        }
       : { message: prompt };
 
+    const token = typeof window !== "undefined" ? localStorage.getItem("TUTORKU_token") : null;
     const headers: Record<string, string> = isGroqConfigured
       ? {
           "Content-Type": "application/json",
           Authorization: `Bearer ${GROQ_API_KEY}`,
         }
+      : isOpenRouterConfigured
+      ? {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+        }
       : {
           "Content-Type": "application/json",
           Accept: "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         };
 
     const resp = await fetch(endpoint, {
       method: "POST",
       headers,
       body: JSON.stringify(payload),
+      credentials: "include",
     });
 
     if (!resp.ok) {
@@ -71,9 +101,11 @@ export default function AiPopup({ compact }: { compact?: boolean } = {}) {
     }
 
     const json = await resp.json();
-    return isGroqConfigured
+    return isOpenRouterConfigured
+      ? json?.choices?.[0]?.message?.content || json?.results?.[0]?.content || json?.output?.[0]?.content || "AI tidak mengembalikan respons yang valid."
+      : isGroqConfigured
       ? json?.choices?.[0]?.message?.content || "AI tidak mengembalikan respons yang valid."
-      : json?.reply || json?.message || json?.response || json?.content || "AI tidak mengembalikan respons yang valid.";
+      : json?.data?.response || json?.reply || json?.message || json?.response || json?.content || "AI tidak mengembalikan respons yang valid.";
   };
 
   const translateText = async (text: string, targetLang: string) => {
@@ -84,6 +116,104 @@ export default function AiPopup({ compact }: { compact?: boolean } = {}) {
       console.warn("Translation failed:", e);
       return text;
     }
+  };
+
+  const escapeHtml = (text: string) =>
+    text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+  const renderInlineText = (text: string) => {
+    const parts: React.ReactNode[] = [];
+    const boldRegex = /\*\*(.+?)\*\*/g;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = boldRegex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+      parts.push(
+        <strong key={`strong-${lastIndex}`} className="font-semibold">
+          {match[1]}
+        </strong>,
+      );
+      lastIndex = boldRegex.lastIndex;
+    }
+
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+
+    return parts.length > 0 ? parts : text;
+  };
+
+  const renderMessageText = (text: string) => {
+    const lines = text.split(/\r?\n/);
+    const blocks: React.ReactNode[] = [];
+    let currentList: { type: "ul" | "ol"; items: string[] } | null = null;
+
+    const flushList = () => {
+      if (!currentList) return;
+      const listClass =
+        currentList.type === "ul"
+          ? "list-disc list-inside space-y-1"
+          : "list-decimal list-inside space-y-1";
+
+      const ListTag = currentList.type === "ul" ? "ul" : "ol";
+
+      blocks.push(
+        <ListTag key={`list-${blocks.length}`} className={`${listClass} ml-4`}>
+          {currentList.items.map((item, index) => (
+            <li key={index} className="break-words whitespace-pre-line">
+              {renderInlineText(item)}
+            </li>
+          ))}
+        </ListTag>,
+      );
+
+      currentList = null;
+    };
+
+    lines.forEach((line, index) => {
+      const trimmed = line.trim();
+      const orderedMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
+      const unorderedMatch = trimmed.match(/^[\-\*\+]\s+(.*)$/);
+
+      if (trimmed === "") {
+        flushList();
+        return;
+      }
+
+      if (orderedMatch) {
+        if (currentList?.type !== "ol") {
+          flushList();
+          currentList = { type: "ol", items: [] };
+        }
+        currentList.items.push(orderedMatch[2]);
+        return;
+      }
+
+      if (unorderedMatch) {
+        if (currentList?.type !== "ul") {
+          flushList();
+          currentList = { type: "ul", items: [] };
+        }
+        currentList.items.push(unorderedMatch[1]);
+        return;
+      }
+
+      flushList();
+      blocks.push(
+        <p key={`p-${index}`} className="mb-2 break-words whitespace-pre-line leading-6">
+          {renderInlineText(trimmed)}
+        </p>,
+      );
+    });
+
+    flushList();
+    return blocks;
   };
 
   const scrollToBottom = () => {
@@ -223,7 +353,9 @@ Pertanyaan pengguna: ${trimmedInput}`);
                         : "ml-auto rounded-[22px] rounded-bl-none bg-white text-gray-800 px-4 py-3 shadow-sm border border-gray-100"
                     }`}
                   >
-                    {message.text}
+                    <div className="space-y-2 text-sm leading-6">
+                      {renderMessageText(message.text)}
+                    </div>
                   </div>
                 ))}
                 {isLoading && (

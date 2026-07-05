@@ -63,7 +63,7 @@ export default function MobileBottomNav({
       icon: <Search size={24} strokeWidth={2} />,
     },
     {
-      label: "Chat",
+      label: "Pesan",
       page: "chat",
       icon: <MessageSquare size={24} strokeWidth={2} />,
     },

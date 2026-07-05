@@ -7,7 +7,7 @@ export default function NotificationsSection({ settings, toggleSetting, savingKe
       ) : (
         <div className="space-y-3">
           {[
-            { key: "notif_email", label: "Notifikasi Email", desc: "Terima pemberitahuan booking & pembayaran via email." },
+            { key: "notif_email", label: "Notifikasi Email", desc: "Terima pemberitahuan pemesanan & pembayaran via email." },
             { key: "notif_whatsapp", label: "Notifikasi WhatsApp", desc: "Terima pemberitahuan penting via WhatsApp." },
             { key: "notif_push", label: "Notifikasi Push", desc: "Terima notifikasi realtime di aplikasi." },
           ].map((item) => (

@@ -1,4 +1,5 @@
 // frontend/src/components/DashboardSiswaPage.tsx
+import { useEffect, useState } from "react";
 import { 
   Calendar, Clock, Heart, Award, Bell, BookMarked, GraduationCap, 
   ChevronRight, User, BarChart3, Target, TrendingUp
@@ -26,7 +27,7 @@ type DashboardOverview = {
     date: string;
     start_time: string;
   } | null;
-  weekly_study_minutes: { label: string; minutes: number }[];
+  monthly_study_minutes: { label: string; minutes: number; completed_sessions: number; date?: string }[];
   achievements_count: number;
 };
 
@@ -54,39 +55,130 @@ export function DashboardSiswaPage({
   navigate: (p: Page) => void;
 }) {
   const { t } = useTranslation();
+  const [selectedMonth, setSelectedMonth] = useState<"this" | "last">("this");
+  const [chartData, setChartData] = useState<DashboardOverview['monthly_study_minutes']>(overview?.monthly_study_minutes ?? []);
+  const [loadingChart, setLoadingChart] = useState(false);
+
+  const normalizeChartData = (items: any): DashboardOverview['monthly_study_minutes'] =>
+    (items ?? []).map((item: any) => ({
+      label: item?.label ?? "",
+      minutes: Number(item?.minutes) || 0,
+      completed_sessions: Number(item?.completed_sessions) || 0,
+      date: item?.date ?? "",
+    }));
+
+  useEffect(() => {
+    const loadMonthStudyData = async () => {
+      setLoadingChart(true);
+      try {
+        const data = await apiFetch(`/dashboard/siswa?month=${selectedMonth}`);
+        const overviewData = data.data ?? data;
+        setChartData(normalizeChartData(overviewData.monthly_study_minutes));
+      } catch (error) {
+        console.error("Gagal memuat data grafik", error);
+        if (selectedMonth === "this" && overview?.monthly_study_minutes) {
+          setChartData(overview.monthly_study_minutes);
+        } else {
+          setChartData([]);
+        }
+      } finally {
+        setLoadingChart(false);
+      }
+    };
+
+    loadMonthStudyData();
+  }, [selectedMonth, apiFetch, overview]);
+
+  const upcoming = overview?.upcoming_session;
+  const monthlyData = chartData;
+  const totalMinutes = monthlyData.reduce((acc, item) => acc + item.minutes, 0);
+  const studyTimeLabel = totalMinutes > 0
+    ? totalMinutes < 60
+      ? `${totalMinutes} Menit`
+      : `${Math.floor(totalMinutes / 60)} Jam`
+    : "Tidak ada jam belajar";
+
+  const selectedMonthName = (() => {
+    const today = new Date();
+    const monthDate = selectedMonth === "last"
+      ? new Date(today.getFullYear(), today.getMonth() - 1, 1)
+      : new Date(today.getFullYear(), today.getMonth(), 1);
+    return monthDate.toLocaleDateString("id-ID", { month: "long" });
+  })();
+
+  const monthlyLabels = monthlyData.map((item) => {
+    if (!item?.date) {
+      return item.label;
+    }
+
+    const today = new Date();
+    const itemDate = new Date(item.date);
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+
+    const sameDay = (a: Date, b: Date) =>
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate();
+
+    if (sameDay(itemDate, today)) {
+      return t("dashboard.timeAgo.today");
+    }
+    if (sameDay(itemDate, yesterday)) {
+      return t("dashboard.timeAgo.yesterday");
+    }
+
+    return item.label;
+  });
+
+  const studyHoursLabel = overview?.total_study_hours
+    ? overview.total_study_hours < 1
+      ? `${Math.round(overview.total_study_hours * 60)} Menit`
+      : `${Math.round(overview.total_study_hours)} Jam`
+    : "Tidak ada jam belajar";
+
   const stats = [
     { 
       label: t("dashboard.stats.totalSessions"), 
       value: `${overview?.total_sessions ?? 0}`, 
       icon: <Calendar size={18} />, 
-      color: "text-blue-600",
-      bg: "bg-blue-50"
+      color: "text-white",
+      bg: "bg-blue-600",
+      cardBg: "bg-blue-600",
+      cardText: "text-white",
+      cardBorder: "border-blue-600/20"
     },
     { 
       label: t("dashboard.stats.studyHours"), 
-      value: `${overview?.total_study_hours ?? 0}h`, 
+      value: studyHoursLabel, 
       icon: <Clock size={18} />, 
-      color: "text-green-600",
-      bg: "bg-green-50"
+      color: "text-white",
+      bg: "bg-green-600",
+      cardBg: "bg-green-600",
+      cardText: "text-white",
+      cardBorder: "border-green-600/20"
     },
     { 
       label: t("dashboard.stats.favoriteTutor"), 
       value: `${overview?.favorite_tutor ?? t("dashboard.noFavoriteTutor")}`, 
       icon: <Heart size={18} />, 
-      color: "text-red-500",
-      bg: "bg-red-50"
+      color: "text-white",
+      bg: "bg-pink-600",
+      cardBg: "bg-pink-600",
+      cardText: "text-white",
+      cardBorder: "border-pink-600/20"
     },
     { 
       label: t("dashboard.stats.achievements"), 
       value: `${overview?.achievements_count ?? 0}`, 
       icon: <Award size={18} />, 
-      color: "text-yellow-600",
-      bg: "bg-yellow-50"
+      color: "text-white",
+      bg: "bg-yellow-500",
+      cardBg: "bg-yellow-500",
+      cardText: "text-white",
+      cardBorder: "border-yellow-500/20"
     },
   ];
-
-  const upcoming = overview?.upcoming_session;
-  const totalMinutes = overview?.weekly_study_minutes?.reduce((acc, item) => acc + item.minutes, 0) ?? 0;
 
   const quickMenu: { label: string; icon: React.ReactNode; page: Page }[] = [
     { label: t("dashboard.quickMenu.bookings"), icon: <Calendar size={16} />, page: "booking-saya" },
@@ -136,12 +228,12 @@ export function DashboardSiswaPage({
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 xs:gap-3 mb-6">
           {stats.map((s) => (
-            <div key={s.label} className="border border-gray-200 p-2 xs:p-4 rounded">
+            <div key={s.label} className={`border ${s.cardBorder ?? 'border-gray-200'} p-2 xs:p-4 rounded ${s.cardBg ?? ''}`}>
               <div className={`w-9 h-9 ${s.bg} flex items-center justify-center mb-2 rounded`}>
                 <span className={s.color}>{s.icon}</span>
               </div>
-              <div className="text-lg xs:text-xl font-extrabold text-gray-900">{s.value}</div>
-              <div className="text-[10px] xs:text-xs text-gray-400">{s.label}</div>
+              <div className={`text-lg xs:text-xl font-extrabold ${s.cardText ?? 'text-gray-900'}`}>{s.value}</div>
+              <div className={`text-[10px] xs:text-xs ${s.cardText ? 'text-white/80' : 'text-gray-400'}`}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -151,12 +243,39 @@ export function DashboardSiswaPage({
           {/* Chart */}
           <div className="md:col-span-2 border border-gray-200 p-3 xs:p-4 rounded">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xs xs:text-sm font-semibold text-gray-900">{t("dashboard.weeklyStudy")}</h3>
-              <span className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded">{t("dashboard.totalMinutes", { minutes: totalMinutes })}</span>
+              <div>
+                <h3 className="text-xs xs:text-sm font-semibold text-gray-900">{t("dashboard.monthlyStudyWithMonth", { month: selectedMonthName })}</h3>
+                <div className="flex gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMonth("this")}
+                    className={`px-3 py-1 text-[10px] rounded transition ${selectedMonth === "this" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                  >
+                    {t("dashboard.monthThis")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMonth("last")}
+                    className={`px-3 py-1 text-[10px] rounded transition ${selectedMonth === "last" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                  >
+                    {t("dashboard.monthLast")}
+                  </button>
+                </div>
+              </div>
+              <span className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded">{studyTimeLabel}</span>
             </div>
-            {overview?.weekly_study_minutes?.length ? (
+            {loadingChart ? (
+              <div className="h-[140px] flex items-center justify-center text-sm text-gray-400">
+                {t("dashboard.loading")}
+              </div>
+            ) : monthlyData.length ? (
               <ResponsiveContainer width="100%" height={140}>
-                <AreaChart data={overview.weekly_study_minutes}>
+                <AreaChart
+              data={monthlyData.map((item, index) => ({
+                ...item,
+                label: monthlyLabels[index] ?? item.label,
+              }))}
+            >
                   <defs>
                     <linearGradient id="studyGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#2563EB" stopOpacity={0.2} />
@@ -168,7 +287,17 @@ export function DashboardSiswaPage({
                   <YAxis tick={{ fill: "#9CA3AF", fontSize: 10 }} axisLine={false} tickLine={false} />
                   <Tooltip
                     contentStyle={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: "6px", color: "#111827", fontSize: "12px" }}
-                    formatter={(value: number) => [`${value} menit`, "Menit"]}
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload || !payload.length) return null;
+                      const data = payload[0].payload as { minutes: number; completed_sessions: number };
+                      return (
+                        <div className="bg-white border border-gray-200 rounded p-2 text-xs text-slate-800">
+                          <div className="font-semibold mb-1">{label}</div>
+                          <div>{data.minutes} menit belajar</div>
+                          <div>{data.completed_sessions} sesi selesai</div>
+                        </div>
+                      );
+                    }}
                     cursor={{ stroke: "#93C5FD" }}
                   />
                   <Area type="monotone" dataKey="minutes" stroke="#2563EB" strokeWidth={2} fill="url(#studyGrad)" dot={{ fill: "#2563EB", r: 3 }} />
@@ -241,7 +370,7 @@ export function DashboardSiswaPage({
               </div>
               <div className="flex justify-between border-b border-gray-100 pb-2">
                 <span className="text-gray-500">{t("dashboard.totalStudyHours")}</span>
-                <span className="font-semibold text-gray-900">{overview?.total_study_hours ?? 0}h</span>
+                <span className="font-semibold text-gray-900">{studyHoursLabel}</span>
               </div>
               <div className="flex justify-between border-b border-gray-100 pb-2">
                 <span className="text-gray-500">{t("dashboard.achievementsCount")}</span>

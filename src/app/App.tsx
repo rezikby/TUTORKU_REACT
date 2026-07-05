@@ -61,14 +61,14 @@ import {
   MapPinned,
 } from "lucide-react";
 
-const VideoPage = lazy(() => import("./TUTORKU/VideoPage"));
+const VideoPage = lazy(() => import("./tutor/VideoPage"));
 const LoginPage = lazy(() => import("./auth/LoginPage"));
 const RegisterPage = lazy(() => import("./auth/RegisterPage"));
 const GoogleOtpPage = lazy(() => import("./auth/GoogleOtpPage"));
 const AdminLoginPage = lazy(() => import("./auth/AdminLoginPage"));
-const CariTutorPage = lazy(() => import("./TUTORKU/CariTutorPage"));
-const DetailTutorPage = lazy(() => import("./TUTORKU/DetailTutorPage"));
-const BookingPage = lazy(() => import("./TUTORKU/BookingPage"));
+const CariTutorPage = lazy(() => import("./tutor/CariTutorPage"));
+const DetailTutorPage = lazy(() => import("./tutor/DetailTutorPage"));
+const BookingPage = lazy(() => import("./tutor/BookingPage"));
 const DashboardSiswaPage = lazy(() => import("./mahasiswa/DashboardSiswaPage"));
 const BookingSayaPage = lazy(() => import("./mahasiswa/BookingSayaPage"));
 const BookingDetailPage = lazy(() => import("./mahasiswa/BookingDetailPage"));
@@ -88,7 +88,7 @@ const AdminLayout = lazy(() => import("./admin/AdminLayout"));
 const PlatformAdminLayout = lazy(() => import("./admin/PlatformAdminLayout"));
 const LiveClasView = lazy(() => import("./admin/components/LiveClasView"));
 
-import TutorCard from "./TUTORKU/TutorCard";
+import TutorCard from "./tutor/TutorCard";
 import Navbar from "./components/ui/navbar";
 import Footer from "./components/ui/fotter";
 import MobileBottomNav from "./components/ui/MobileButtomNav";
@@ -197,7 +197,7 @@ type DashboardOverview = {
     date: string;
     start_time: string;
   } | null;
-  weekly_study_minutes: { label: string; minutes: number }[];
+  monthly_study_minutes: { label: string; minutes: number; completed_sessions: number; date?: string }[];
   achievements_count: number;
 };
 
@@ -338,7 +338,7 @@ export default function App() {
     return () => clearTimeout(t);
   }, [otpCooldown]);
 
-  const apiFetch = async (path: string, options: RequestInit = {}) => {
+  const apiFetch = async (path: string, options: any = {}) => {
     const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
     const incomingHeaders =
       options.headers instanceof Headers
@@ -372,6 +372,8 @@ export default function App() {
       }
     }
 
+    const suppressAuthRedirect = !!options.suppressAuthRedirect;
+
     try {
       const res = await fetch(url, {
         ...options,
@@ -380,12 +382,15 @@ export default function App() {
       });
 
       if (res.status === 401) {
-        localStorage.removeItem("TUTORKU_token");
-        setToken(null);
-        setUser(null);
-        if (activePage !== "login" && activePage !== "register") {
-          navigate("login");
-          toastError("Sesi Anda telah berakhir. Silakan login kembali.");
+        // If caller asked to suppress auth redirect, don't clear token or navigate.
+        if (!suppressAuthRedirect) {
+          localStorage.removeItem("TUTORKU_token");
+          setToken(null);
+          setUser(null);
+          if (activePage !== "login" && activePage !== "register") {
+            navigate("login");
+            toastError("Sesi Anda telah berakhir. Silakan login kembali.");
+          }
         }
         throw new Error("Unauthorized");
       }
@@ -421,12 +426,12 @@ export default function App() {
     const midtransStatus =
       params.get("transaction_status") || params.get("status_code");
 
-    if (!bookingId) return;
+    if (!bookingId || !/^[0-9]+$/.test(bookingId)) return;
 
     (async () => {
       try {
         if (!paymentId) {
-          const bookingResponse = await apiFetch(`/bookings/${bookingId}`);
+          const bookingResponse = await apiFetch(`/bookings/${bookingId}`, { suppressAuthRedirect: true });
           const bookingData = bookingResponse.data ?? bookingResponse;
           paymentId = bookingData?.payment?.id;
         }
@@ -434,16 +439,18 @@ export default function App() {
         let synced = false;
 
         if (paymentId) {
-          try {
+            try {
             await apiFetch(`/payments/${paymentId}/simulate`, {
               method: "POST",
               body: JSON.stringify({ status: "paid" }),
+              suppressAuthRedirect: true,
             });
             synced = true;
           } catch {
             try {
               await apiFetch(`/payments/${paymentId}/check-status`, {
                 method: "POST",
+                suppressAuthRedirect: true,
               });
               synced = true;
             } catch (e) {
@@ -470,7 +477,7 @@ export default function App() {
           await new Promise((r) => setTimeout(r, 500));
         }
 
-        const data = await apiFetch(`/bookings/${bookingId}`);
+        const data = await apiFetch(`/bookings/${bookingId}`, { suppressAuthRedirect: true });
         const booking = data.data ?? data;
         const paymentStatus = booking?.payment?.status?.toLowerCase();
 
@@ -480,16 +487,50 @@ export default function App() {
           paymentStatus === "success"
         ) {
           toastSuccess("Pembayaran berhasil! Booking dikonfirmasi.");
-          if (booking?.id) {
-            setWebsiteRatingBookingId(Number(booking?.id));
-            setShowWebsiteRatingPopup(true);
+          try {
+            // fetch user's bookings and show rating popup on every 3rd booking (3,6,9...)
+            const allBookingsResp = await apiFetch('/bookings', { suppressAuthRedirect: true });
+            const allBookings = (allBookingsResp.data ?? allBookingsResp) || [];
+            const bookingsArray = Array.isArray(allBookings) ? allBookings : [];
+            // Count only successful bookings: confirmed/completed or payment status paid/success
+            const successful = bookingsArray.filter((bk: any) => {
+              const st = (bk.status || "").toString().toLowerCase();
+              const pay = (bk.payment?.status || "").toString().toLowerCase();
+              if (st === "confirmed" || st === "completed") return true;
+              if (pay === "paid" || pay === "success") return true;
+              return false;
+            });
+            const totalBookings = successful.length;
+
+            if (booking?.id && totalBookings > 0 && totalBookings % 3 === 0) {
+              setWebsiteRatingBookingId(Number(booking?.id));
+              setShowWebsiteRatingPopup(true);
+            }
+          } catch (e) {
+            // if fetching bookings fails, fallback to showing popup for safety
+            if (booking?.id) {
+              setWebsiteRatingBookingId(Number(booking?.id));
+              setShowWebsiteRatingPopup(true);
+            }
           }
         } else {
           toastSuccess("Pembayaran berhasil. Booking sedang diproses.");
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("Gagal memuat booking setelah pembayaran", err);
-        toastSuccess("Pembayaran berhasil!");
+        const message =
+          err?.message ||
+          "Terjadi kesalahan saat memuat booking setelah pembayaran.";
+        if (
+          message.includes("No query results for model [App\\Models\\Booking]") ||
+          message.includes("Request failed: 404")
+        ) {
+          toastError(
+            "Booking tidak ditemukan. Silakan buka ulang atau periksa kembali link pembayaran.",
+          );
+        } else {
+          toastError(message);
+        }
       } finally {
         const u = new URL(window.location.href);
         u.search = "";
@@ -789,17 +830,21 @@ export default function App() {
   const loadOverview = async () => {
     try {
       const data = await apiFetch("/dashboard/siswa");
-      setOverview(
-        data.data ??
-          data ?? {
-            total_sessions: 0,
-            total_study_hours: 0,
-            favorite_tutor: null,
-            upcoming_session: null,
-            weekly_study_minutes: [],
-            achievements_count: 0,
-          },
-      );
+      const overviewData = data.data ?? data;
+      const normalizedOverview = {
+        total_sessions: overviewData.total_sessions ?? 0,
+        total_study_hours: overviewData.total_study_hours ?? 0,
+        favorite_tutor: overviewData.favorite_tutor ?? null,
+        upcoming_session: overviewData.upcoming_session ?? null,
+        monthly_study_minutes: (overviewData.monthly_study_minutes ?? []).map((item: any) => ({
+          label: item?.label ?? "",
+          minutes: Number(item?.minutes) || 0,
+          completed_sessions: Number(item?.completed_sessions) || 0,
+          date: item?.date ?? "",
+        })),
+        achievements_count: overviewData.achievements_count ?? 0,
+      };
+      setOverview(normalizedOverview);
     } catch (error: any) {
       if (error.message !== "Unauthorized") {
         console.error("Gagal memuat overview", error);
@@ -809,7 +854,7 @@ export default function App() {
         total_study_hours: 0,
         favorite_tutor: null,
         upcoming_session: null,
-        weekly_study_minutes: [],
+        monthly_study_minutes: [],
         achievements_count: 0,
       });
     }
@@ -1667,7 +1712,8 @@ export default function App() {
     activePage !== "platform-admin" &&
     activePage !== "admin-login" &&
     activePage !== "login-google-otp" &&
-    activePage !== "live-class-tutor";
+    activePage !== "live-class-tutor" &&
+    activePage !== "live-class";
 
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
@@ -1964,12 +2010,8 @@ export default function App() {
       </div>
 
       {/* ============ FOOTER ============ */}
-      {activePage !== "admin" &&
-        activePage !== "platform-admin" &&
-        activePage !== "login" &&
-        activePage !== "register" &&
-        activePage !== "login-google-otp" &&
-        activePage !== "live-class-tutor" && <Footer navigate={navigate} />}
+      {/* ============ FOOTER ============ */}
+      {showNav && <Footer navigate={navigate} />}
 
       {/* ============ MOBILE BOTTOM NAV ============ */}
       {showNav && (

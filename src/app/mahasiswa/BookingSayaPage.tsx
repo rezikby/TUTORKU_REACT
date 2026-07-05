@@ -313,6 +313,27 @@ export default function BookingSayaPage(props: any) {
                 const isSelected = selectedIds.includes(b.id);
                 const isDeleting = deletingIds.includes(b.id);
                 
+                function parseGoogleMapsCoords(url?: string | null) {
+                  if (!url) return null;
+                  try {
+                    // look for @lat,lng pattern
+                    const atMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+                    if (atMatch) return { lat: atMatch[1], lng: atMatch[2] };
+                    // look for !3dLAT!4dLNG pattern
+                    const dMatch = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+                    if (dMatch) return { lat: dMatch[1], lng: dMatch[2] };
+                    return null;
+                  } catch (e) {
+                    return null;
+                  }
+                }
+
+                const gmUrl = b.tutor?.google_maps_url ?? null;
+                const coords = parseGoogleMapsCoords(gmUrl);
+                const mapUrl = coords
+                  ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${coords.lat},${coords.lng}`)}`
+                  : null;
+
                 return (
                   <div
                     key={b.id}
@@ -415,9 +436,9 @@ export default function BookingSayaPage(props: any) {
                           {t("booking.view")}
                         </button>
                       ) : null}
-                      {b.mode === "offline" && b.tutor?.google_maps_url && (
+                      {b.mode === "offline" && mapUrl && (
                         <a
-                          href={b.tutor.google_maps_url}
+                          href={mapUrl}
                           target="_blank"
                           rel="noreferrer"
                           className="px-2 xs:px-4 py-1.5 text-xs font-medium text-[#2563EB] border border-[#2563EB]/30 hover:bg-[#2563EB]/5 transition-colors inline-flex items-center justify-center gap-1"

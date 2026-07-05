@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ChangeEvent } from "react";
+import twemoji from "twemoji";
 import { ChevronLeft, Loader2, MessageCircle, Search, Send, Paperclip, Image as ImageIcon, Smile, CheckCheck, Trash2, X } from "lucide-react";
 import { getEcho } from "../../lib/echo";
 import { adminApiFetch } from "../adminApi";
@@ -30,7 +31,7 @@ type Conversation = {
 };
 
 type Message = {
-  id: number;
+  id: string | number;
   conversation_id: number;
   sender_id: number;
   type: string;
@@ -42,6 +43,15 @@ type Message = {
   deleted_for?: "me" | "all" | null;
   deleted_by_user_id?: number | null;
   read_at?: string | null;
+};
+
+const getMessagePreview = (message: any) => {
+  if (!message) return null;
+  if (message.is_deleted) return "[Pesan dihapus]";
+  if (message.type === "image") return "[Gambar]";
+  if (message.type === "file") return "[File]";
+  if (message.type === "voice") return "[Suara]";
+  return message.content ?? null;
 };
 
 const normalizeConversation = (item: any): Conversation => {
@@ -56,14 +66,15 @@ const normalizeConversation = (item: any): Conversation => {
           role: otherUser.role ?? "user",
         }
       : null,
-    last_message_at: item.last_message_at,
-    last_message_preview: item.last_message?.content ?? item.last_message_preview ?? null,
+    last_message_at: item.last_message_at ?? item.last_message?.created_at,
+    last_message_preview: getMessagePreview(item.last_message ?? item.last_message_preview) ?? item.last_message_preview ?? null,
     unread_count: item.unread_count ?? 0,
   };
 };
 
+const normalizeMessageId = (id: any) => (id === null || id === undefined ? id : String(id));
 const normalizeMessage = (item: any): Message => ({
-  id: item.id,
+  id: normalizeMessageId(item.id),
   conversation_id: item.conversation_id,
   sender_id: item.sender_id,
   type: item.type ?? "text",
@@ -76,6 +87,53 @@ const normalizeMessage = (item: any): Message => ({
   read_at: item.read_at ?? null,
   created_at: item.created_at,
 });
+
+const getMessageTimestamp = (createdAt: string | null | undefined) =>
+  createdAt ? new Date(createdAt).getTime() : 0;
+
+const isEmojiOnly = (value?: string | null) => {
+  if (!value) return false;
+
+  return value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((token) => /^(?:\p{Extended_Pictographic}|\uFE0F|\u200D)+$/u.test(token));
+};
+
+const TWEMOJI_BASE = "https://twemoji.maxcdn.com/v/latest/72x72/";
+
+const renderEmojiContent = (value?: string | null, imageClassName = "h-12 w-12 md:h-14 md:w-14") => {
+  if (!value) return null;
+
+  const tokens = value.trim().split(/\s+/).filter(Boolean);
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-1">
+      {tokens.map((token, index) => (
+        <img
+          key={`${token}-${index}`}
+          src={`${TWEMOJI_BASE}${twemoji.convert.toCodePoint(token)}.png`}
+          alt={token}
+          className={imageClassName}
+        />
+      ))}
+    </div>
+  );
+};
+
+const shouldUpdatePreview = (current: Conversation, incomingCreatedAt?: string | null) => {
+  if (!incomingCreatedAt) return true;
+  const currentTime = getMessageTimestamp(current.last_message_at);
+  const incomingTime = getMessageTimestamp(incomingCreatedAt);
+  return incomingTime >= currentTime;
+};
+
+const getMessageKey = (message: Message) => {
+  if (message.id !== null && message.id !== undefined) {
+    return `id:${message.id}`;
+  }
+  return `content:${message.content ?? ""}|sender:${message.sender_id}|created_at:${message.created_at}`;
+};
 
 const formatTime = (value?: string | null) => {
   if (!value) return "";
@@ -117,6 +175,24 @@ export default function ChatView({ user }: ChatViewProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
+
+  const addMessageIfUnique = (message: Message) => {
+    setMessages((prev: Message[]) => {
+      const key = getMessageKey(message);
+      if (prev.some((m) => getMessageKey(m) === key)) return prev;
+      return [...prev, message];
+    });
+  };
+  const upsertMessage = (message: Message) => {
+    setMessages((prev: Message[]) => {
+      const key = getMessageKey(message);
+      const existingIndex = prev.findIndex((m) => getMessageKey(m) === key);
+      if (existingIndex === -1) return [...prev, message];
+      const updated = [...prev];
+      updated[existingIndex] = { ...updated[existingIndex], ...message };
+      return updated;
+    });
+  };
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -129,16 +205,45 @@ export default function ChatView({ user }: ChatViewProps) {
     previewUrl?: string | null;
     isImage: boolean;
   } | null>(null);
-  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | number | null>(null);
   const [editingText, setEditingText] = useState<string>("");
-  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; messageId: number | null }>({ open: false, messageId: null });
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; messageId: string | number | null }>({ open: false, messageId: null });
   const [searchQuery, setSearchQuery] = useState("");
+
+  const sortConversations = (items: Conversation[]) =>
+    [...items].sort((a, b) => {
+      const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+      const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+      return bTime - aTime;
+    });
+
+  const updateConversationPreview = (
+    conversationId: number,
+    preview: string | null,
+    createdAt: string,
+    setConversationsFn: React.Dispatch<React.SetStateAction<Conversation[]>>,
+    activeConversation: Conversation | null,
+    setActiveConversation: React.Dispatch<React.SetStateAction<Conversation | null>>,
+  ) => {
+    setConversationsFn((prev) =>
+      sortConversations(
+        prev.map((c) =>
+          c.id === conversationId && shouldUpdatePreview(c, createdAt)
+            ? { ...c, last_message_preview: preview, last_message_at: createdAt }
+            : c,
+        ),
+      ),
+    );
+    if (activeConversation?.id === conversationId && shouldUpdatePreview(activeConversation, createdAt)) {
+      setActiveConversation({ ...activeConversation, last_message_preview: preview, last_message_at: createdAt });
+    }
+  };
 
   const loadConversations = async () => {
     try {
       const response = await adminApiFetch("/chat/conversations");
       const list = Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : [];
-      const normalized = list.map(normalizeConversation);
+      const normalized = sortConversations(list.map(normalizeConversation));
       setConversations(normalized);
       return normalized;
     } catch (error) {
@@ -181,15 +286,15 @@ export default function ChatView({ user }: ChatViewProps) {
       const token = localStorage.getItem("TUTORKU_token");
       const echo = getEcho(token);
       const channel = echo.private(`chat.${activeConversation.id}`);
-      channel.listen(".message.sent", async (e: any) => {
+      const handler = async (e: any) => {
         const incoming = e.message ?? e;
         const normalized = normalizeMessage(incoming);
         const senderName = e.sender_name || e.user?.name || activeConversation?.with_user?.name || "Pesan baru";
         const preview = normalized.content || (normalized.type === "image" ? "Mengirim gambar" : normalized.type === "file" ? "Mengirim file" : "Pesan baru");
-        setMessages((prev) => {
-          if (prev.find((m) => m.id === normalized.id)) return prev;
-          return [...prev, normalized];
-        });
+        upsertMessage(normalized);
+        if (activeConversation?.id) {
+          updateConversationPreview(activeConversation.id, preview, normalized.created_at, setConversations, activeConversation, setActiveConversation);
+        }
         if (normalized.sender_id !== user?.id) {
           await showChatMessageNotification({
             title: senderName,
@@ -197,10 +302,70 @@ export default function ChatView({ user }: ChatViewProps) {
             icon: activeConversation?.with_user?.avatar || undefined,
           });
         }
-      });
-      return () => { try { echo.leave(`chat.${activeConversation.id}`); } catch {} };
+      };
+      channel.listen(".message.sent", handler);
+      return () => {
+        try {
+          channel.stopListening(".message.sent", handler);
+        } catch {}
+      };
     } catch {}
   }, [activeConversation?.id]);
+
+  useEffect(() => {
+    if (!activeConversation?.id || conversations.length === 0) return;
+
+    try {
+      const token = localStorage.getItem("TUTORKU_token");
+      const echo = getEcho(token);
+      const unlisteners: (() => void)[] = [];
+
+      conversations.forEach((convo) => {
+        if (activeConversation?.id === convo.id) return;
+
+        const channel = echo.private(`chat.${convo.id}`);
+        const handler = (e: any) => {
+          const incoming = e.message ?? e;
+          console.debug("[chat-realtime] conversation list update", { convoId: convo.id, incoming });
+
+          const preview =
+            incoming.content ||
+            (incoming.type === "image"
+              ? "[Gambar]"
+              : incoming.type === "file"
+              ? "[File]"
+              : "Pesan baru");
+
+          setConversations((prev) =>
+            sortConversations(
+              prev.map((c) =>
+                c.id === convo.id && shouldUpdatePreview(c, incoming.created_at)
+                  ? {
+                      ...c,
+                      last_message_preview: preview,
+                      last_message_at: incoming.created_at,
+                      unread_count:
+                        String(incoming.sender_id) !== String(user?.id) && activeConversation?.id !== convo.id
+                          ? (c.unread_count || 0) + 1
+                          : 0,
+                    }
+                  : c,
+              ),
+            ),
+          );
+        };
+
+        channel.listen(".message.sent", handler);
+        unlisteners.push(() => channel.stopListening(".message.sent", handler));
+      });
+
+      return () => {
+        unlisteners.forEach((fn) => fn());
+      };
+    } catch (error) {
+      console.warn("[chat-realtime] setup error", error);
+    }
+  }, [conversations, activeConversation, user?.id]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -218,14 +383,8 @@ export default function ChatView({ user }: ChatViewProps) {
         body: JSON.stringify({ type: "text", content: text }),
       });
       const newMessage = normalizeMessage(response?.data ?? response);
-      setMessages((prev) => [...prev, newMessage]);
-      setConversations((prev) =>
-        prev.map((item) =>
-          item.id === activeConversation.id
-            ? { ...item, last_message_preview: text, last_message_at: newMessage.created_at }
-            : item
-        )
-      );
+      addMessageIfUnique(newMessage);
+      updateConversationPreview(activeConversation.id, text, newMessage.created_at, setConversations, activeConversation, setActiveConversation);
     } catch (error) {
       console.error("Gagal mengirim pesan", error);
       setInput(text);
@@ -287,14 +446,17 @@ export default function ChatView({ user }: ChatViewProps) {
         xhr.send(formData);
       });
       const newMessage = normalizeMessage(res?.data ?? res);
-      setMessages((prev) => [...prev, newMessage]);
-      setConversations((prev) =>
-        prev.map((item) =>
-          item.id === activeConversation.id
-            ? { ...item, last_message_preview: isImage ? "[Gambar]" : "[File]", last_message_at: newMessage.created_at }
-            : item
-        )
-      );
+      addMessageIfUnique(newMessage);
+      if (activeConversation?.id) {
+        updateConversationPreview(
+          activeConversation.id,
+          isImage ? "[Gambar]" : "[File]",
+          newMessage.created_at,
+          setConversations,
+          activeConversation,
+          setActiveConversation,
+        );
+      }
     } catch (err: any) {
       setUploadError(err?.message ?? "Gagal mengunggah file");
     } finally {
@@ -317,25 +479,66 @@ export default function ChatView({ user }: ChatViewProps) {
 
   const cancelEdit = () => { setEditingMessageId(null); setEditingText(""); };
 
-  const saveEdit = async (messageId: number) => {
+  const saveEdit = async (messageId: string | number) => {
     const newText = editingText.trim();
     if (!newText) return;
+    const currentMessage = messages.find((m) => m.id === messageId);
+    const isLastMessage = messages[messages.length - 1]?.id === messageId;
     setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, content: newText } : m)));
     setEditingMessageId(null);
     setEditingText("");
     try {
       await adminApiFetch(`/chat/messages/${messageId}`, { method: "PATCH", body: JSON.stringify({ content: newText }) });
-    } catch {}
+      if (isLastMessage && currentMessage && activeConversation?.id) {
+        updateConversationPreview(activeConversation.id, newText, currentMessage.created_at, setConversations, activeConversation, setActiveConversation);
+      }
+    } catch (error) {
+      console.error("Gagal mengedit pesan", error);
+    }
   };
 
   const confirmDeleteAction = async (scope: "me" | "all") => {
     const messageId = deleteConfirm.messageId;
     setDeleteConfirm({ open: false, messageId: null });
     if (!messageId) return;
+
+    const previousMessage = messages.find((msg) => msg.id === messageId);
+    const isLastMessage = messages[messages.length - 1]?.id === messageId;
+    const deletedPreview = "[Pesan dihapus]";
+
     if (scope === "me") {
-      setMessages((prev) => prev.map((msg) => msg.id === messageId ? { ...msg, is_deleted: true, deleted_for: "me", deleted_by_user_id: user?.id ?? null } : msg));
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId
+            ? ({ ...msg, is_deleted: true, deleted_for: "me" as const, deleted_by_user_id: user?.id ?? null } as Message)
+            : msg
+        ),
+      );
     } else {
-      setMessages((prev) => prev.map((msg) => msg.id === messageId ? { ...msg, is_deleted: true, deleted_for: "all", deleted_by_user_id: user?.id ?? null, content: "[Pesan dihapus]" } : msg));
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId
+            ? ({
+                ...msg,
+                is_deleted: true,
+                deleted_for: "all" as const,
+                deleted_by_user_id: user?.id ?? null,
+                content: deletedPreview,
+              } as Message)
+            : msg
+        ),
+      );
+
+      if (isLastMessage && activeConversation?.id) {
+        updateConversationPreview(
+          activeConversation.id,
+          deletedPreview,
+          previousMessage?.created_at ?? new Date().toISOString(),
+          setConversations,
+          activeConversation,
+          setActiveConversation,
+        );
+      }
     }
     try {
       await adminApiFetch(`/chat/messages/${messageId}?scope=${scope}`, { method: "DELETE" });
@@ -415,9 +618,13 @@ export default function ChatView({ user }: ChatViewProps) {
                           )}
                         </div>
                         <div className="flex items-center justify-between gap-1">
-                          <p className="truncate text-xs text-gray-400">
-                            {conversation.last_message_preview || "Belum ada pesan"}
-                          </p>
+                          <div className="truncate text-xs text-gray-400">
+                            {isEmojiOnly(conversation.last_message_preview) ? (
+                              renderEmojiContent(conversation.last_message_preview, "h-5 w-5")
+                            ) : (
+                              <p className="truncate">{conversation.last_message_preview || "Belum ada pesan"}</p>
+                            )}
+                          </div>
                           {(conversation.unread_count ?? 0) > 0 && (
                             <span className="flex-shrink-0 bg-blue-500 px-1.5 py-0.5 text-[10px] font-bold text-white rounded">
                               {(conversation.unread_count ?? 0) > 9 ? "9+" : conversation.unread_count}
@@ -568,6 +775,10 @@ export default function ChatView({ user }: ChatViewProps) {
                                   </div>
                                 ) : message.is_deleted && message.deleted_for === "all" ? (
                                   <p className="italic text-xs text-gray-300">Pesan telah dihapus</p>
+                                ) : isEmojiOnly(message.content) ? (
+                                  <div className="flex flex-wrap items-center justify-center gap-1">
+                                    {renderEmojiContent(message.content)}
+                                  </div>
                                 ) : (
                                   message.content && (
                                     <p className="whitespace-pre-wrap break-words">{message.content}</p>
@@ -583,7 +794,7 @@ export default function ChatView({ user }: ChatViewProps) {
                               </div>
 
                               {!isDeleted && !isEditing && (
-                                <div className={`absolute top-0 ${isMine ? "left-0 -translate-x-full pr-1" : "right-0 translate-x-full pl-1"} hidden items-center gap-0.5`}>
+                                <div className={`absolute top-0 ${isMine ? "left-0 -translate-x-full pr-1" : "right-0 translate-x-full pl-1"} flex items-center gap-0.5 opacity-100 md:opacity-0 transition-opacity md:group-hover:opacity-100`}>
                                   {isMine && message.type === "text" && (
                                     <button
                                       onClick={() => startEdit(message)}

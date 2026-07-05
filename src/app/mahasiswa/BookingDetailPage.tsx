@@ -111,6 +111,55 @@ export default function BookingDetailPage({
     };
   }, [bookingId]);
 
+  // Determine which subject_id (if any) this booking corresponds to from tutor availabilities
+  const matchedAvailabilitySubjectId = (() => {
+    if (!booking) return null;
+    const availabilities = booking.tutor?.availabilities ?? [];
+    if (!Array.isArray(availabilities) || availabilities.length === 0) return null;
+
+    try {
+      const bookingDate = booking.date ? new Date(booking.date) : null;
+      const bookingStart = booking.start_time ? booking.start_time.slice(0,5) : null;
+      const bookingSubjectId = booking.subject?.id ?? null;
+
+      for (const av of availabilities) {
+        // av.subject may be null, but availability created by tutor should include subject
+        const avSubjectId = av.subject?.id ?? null;
+
+        // If both availability and booking have subjects and they differ, skip
+        if (avSubjectId && bookingSubjectId && avSubjectId !== bookingSubjectId) continue;
+
+        if (av.date) {
+          if (!bookingDate) continue;
+          const avDate = new Date(av.date);
+          if (avDate.toDateString() !== bookingDate.toDateString()) continue;
+        } else if (bookingDate) {
+          const dayOfWeek = bookingDate.getDay();
+          if (av.day_of_week !== dayOfWeek) continue;
+        }
+
+        // Compare times: bookingStart should be within av.start_time <= bookingStart < av.end_time
+        const toMinutes = (t: string) => {
+          const [h, m] = t.split(":").map(Number);
+          return h * 60 + m;
+        };
+
+        const bStart = bookingStart ? toMinutes(bookingStart) : null;
+        const aStart = av.start_time ? toMinutes(av.start_time.slice(0,5)) : null;
+        const aEnd = av.end_time ? toMinutes(av.end_time.slice(0,5)) : null;
+        if (bStart !== null && aStart !== null && aEnd !== null) {
+          if (bStart >= aStart && bStart < aEnd) {
+            return avSubjectId ?? bookingSubjectId ?? null;
+          }
+        }
+      }
+    } catch (e) {
+      return null;
+    }
+
+    return null;
+  })();
+
   useEffect(() => {
     if (!booking || paymentChecked) return;
 
@@ -201,7 +250,13 @@ export default function BookingDetailPage({
                 )}
                 <div>
                   <div className="text-base font-bold text-gray-900">{booking.tutor?.name ?? t("bookingDetail.tutorFallback")}</div>
-                  <div className="text-sm text-gray-500">{booking.subject?.name ?? t("common.unknown")}</div>
+                  <div className="text-sm text-gray-500">
+                    {matchedAvailabilitySubjectId && booking.subject?.id === matchedAvailabilitySubjectId ? (
+                      <strong>{booking.subject?.name ?? t("common.unknown")}</strong>
+                    ) : (
+                      booking.subject?.name ?? t("common.unknown")
+                    )}
+                  </div>
                   <div className="text-xs text-gray-400 mt-1 flex items-center gap-1.5">
                     {t("bookingDetail.bookingCodeLabel")} {booking.code}
                     <button onClick={() => copyCode(booking.code)} className="text-gray-400 hover:text-gray-700" aria-label={t("bookingDetail.copyBookingCode")}
@@ -275,18 +330,31 @@ export default function BookingDetailPage({
                         </a>
                       </div>
                     ) : null}
-                    {booking.tutor?.google_maps_url && (
-                      <div>
-                        <a
-                          href={booking.tutor.google_maps_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-2 text-blue-600 hover:underline text-xs font-medium"
-                        >
-                          <MapPin size={14} /> {t("bookingDetail.openGoMap")}
-                        </a>
-                      </div>
-                    )}
+                    {(function() {
+                      const gm = booking.tutor?.google_maps_url ?? null;
+                      if (!gm) return null;
+                      try {
+                        const atMatch = gm.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+                        const dMatch = gm.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+                        const coords = atMatch ? { lat: atMatch[1], lng: atMatch[2] } : dMatch ? { lat: dMatch[1], lng: dMatch[2] } : null;
+                        if (!coords) return null;
+                        const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${coords.lat},${coords.lng}`)}`;
+                        return (
+                          <div>
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-2 text-blue-600 hover:underline text-xs font-medium"
+                            >
+                              <MapPin size={14} /> {t("bookingDetail.openGoMap")}
+                            </a>
+                          </div>
+                        );
+                      } catch (e) {
+                        return null;
+                      }
+                    })()}
                     {booking.location_note && (
                       <div className="text-xs text-gray-500">{t("bookingDetail.landmark", { note: booking.location_note })}</div>
                     )}

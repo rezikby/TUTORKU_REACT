@@ -134,3 +134,22 @@ export function reconnectEcho(token: string | null): Echo {
   disconnectEcho();
   return getEcho(token);
 }
+
+export function getSocketId(echo: Echo): string | null {
+  try {
+    const connector = (echo as any).connector;
+    if (!connector) return null;
+    if (typeof connector.socketId === 'function') {
+      return connector.socketId();
+    }
+    if (typeof connector.socket_id === 'string' && connector.socket_id.length > 0) {
+      return connector.socket_id;
+    }
+    if (typeof connector.socketId === 'string' && connector.socketId.length > 0) {
+      return connector.socketId;
+    }
+  } catch (error) {
+    console.warn('[Echo] Failed to read socketId', error);
+  }
+  return null;
+}

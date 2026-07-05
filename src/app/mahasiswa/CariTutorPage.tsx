@@ -257,7 +257,7 @@ export default function CariTutorPage({
                     onClick={(e) => { e.stopPropagation(); onSelectTutor(tutor); navigate("booking"); }}
                     className="flex-1 xs:flex-auto px-2 xs:px-4 py-1 xs:py-1.5 text-xs xs:text-sm font-medium bg-[#2563EB] text-white rounded hover:bg-[#1D4ED8] transition-all"
                   >
-                    {t("findTutor.booking")}
+                    {t("findTutor.bookButton")}
                   </button>
                 </div>
               </div>

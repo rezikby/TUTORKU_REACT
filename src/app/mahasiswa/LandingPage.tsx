@@ -25,7 +25,7 @@ import {
   Zap,
   GraduationCap,
 } from "lucide-react";
-import TutorCard, { Tutor as TutorCardType } from "../TUTORKU/TutorCard";
+import TutorCard, { Tutor as TutorCardType } from "../tutor/TutorCard";
 
 type Page =
   | "landing"
@@ -163,7 +163,15 @@ export default function LandingPage({
               created_at: r.created_at,
             };
           });
-          setTestimonials(ratings);
+          const fiveStarTestimonials = ratings
+            .filter((item) => item.rating === 5)
+            .sort((a, b) => {
+              if (!a.created_at || !b.created_at) return 0;
+              return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            })
+            .slice(0, 3);
+
+          setTestimonials(fiveStarTestimonials);
           setRatingsSummary({ average: data.average ?? 0, total: data.total ?? ratings.length });
         }
       } catch (error) {
@@ -355,6 +363,10 @@ export default function LandingPage({
     { val: "50+", label: t("landing.stats.cities") },
     { val: "95%", label: t("landing.stats.satisfaction") },
   ];
+
+  const topRatedTutors = [...tutors]
+    .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
+    .slice(0, 3);
 
   return (
     <div 
@@ -618,12 +630,13 @@ export default function LandingPage({
         gap-8
       "
           >
-            {tutors.slice(0, 6).map((tutor) => (
+            {topRatedTutors.map((tutor) => (
               <TutorCard
                 key={tutor.id}
                 tutor={tutor}
                 onView={() => onSelectTutor(tutor)}
                 onBook={() => {
+                  onSelectTutor(tutor);
                   navigate("booking");
                 }}
               />

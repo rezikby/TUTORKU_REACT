@@ -24,6 +24,7 @@ interface BookingSchedule {
 
 interface AvailabilityItem {
   id: number;
+  date?: string | null;
   day_of_week: number;
   start_time: string;
   end_time: string;
@@ -68,12 +69,13 @@ export default function JadwalView() {
   const [availabilities, setAvailabilities] = useState<AvailabilityItem[]>([]);
   const [isLoadingSchedules, setIsLoadingSchedules] = useState(true);
   const [isLoadingAvailabilities, setIsLoadingAvailabilities] = useState(true);
+  const [subjects, setSubjects] = useState<{ id: number; name: string }[]>([]);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [bookingActionId, setBookingActionId] = useState<number | null>(null);
   const [startingId, setStartingId] = useState<number | null>(null);
   const [savingAvailability, setSavingAvailability] = useState(false);
   const [checkingPaymentId, setCheckingPaymentId] = useState<number | null>(null);
-  const [newAvailability, setNewAvailability] = useState({ day_of_week: 1, start_time: "08:00", end_time: "09:00" });
+  const [newAvailability, setNewAvailability] = useState<{ date: string; day_of_week: number; start_time: string; end_time: string; subject_id?: number | null }>({ date: new Date().toISOString().slice(0, 10), day_of_week: new Date().getDay(), start_time: "08:00", end_time: "09:00", subject_id: null });
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
 
@@ -88,6 +90,19 @@ export default function JadwalView() {
       .then((data) => setAvailabilities(data.data ?? data))
       .catch((error) => console.error(error))
       .finally(() => setIsLoadingAvailabilities(false));
+
+    // load subjects for availability creation
+    adminApiFetch("/subjects")
+      .then((data) => {
+        const list = data.data ?? data;
+        if (Array.isArray(list)) {
+          setSubjects(list.map((s: any) => ({ id: s.id, name: s.name })));
+          if (list.length > 0) {
+            setNewAvailability((prev) => ({ ...prev, subject_id: list[0].id }));
+          }
+        }
+      })
+      .catch(() => {})
   }, []);
 
   useEffect(() => {
@@ -180,18 +195,50 @@ export default function JadwalView() {
     }
   };
 
+  const formatDateLabel = (date?: string | null, dayOfWeek?: number) => {
+    if (date) {
+      const dateObj = new Date(date);
+      if (!Number.isNaN(dateObj.getTime())) {
+        return dateObj.toLocaleDateString("id-ID", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
+      }
+    }
+
+    if (dayOfWeek !== undefined) {
+      return DAY_LABELS[dayOfWeek] ?? "-";
+    }
+
+    return "-";
+  };
+
   const handleCreateAvailability = async () => {
     setSavingAvailability(true);
     try {
+      const payload: Record<string, any> = {
+        start_time: newAvailability.start_time,
+        end_time: newAvailability.end_time,
+      };
+
+      if (newAvailability.date) {
+        payload.date = newAvailability.date;
+      } else {
+        payload.day_of_week = newAvailability.day_of_week;
+      }
+
+      // include subject_id (required by backend)
+      if (newAvailability.subject_id) {
+        payload.subject_id = Number(newAvailability.subject_id);
+      }
+
       const createdAvailability = await adminApiFetch("/tutor/availabilities", {
         method: "POST",
-        body: JSON.stringify(newAvailability),
+        body: JSON.stringify(payload),
       });
       setAvailabilities((current) => [...current, createdAvailability.data ?? createdAvailability]);
-      setNewAvailability({ day_of_week: 1, start_time: "08:00", end_time: "09:00" });
-    } catch (error) {
-      console.error(error);
-      alertError("Gagal menambahkan ketersediaan.");
+      setNewAvailability({ date: new Date().toISOString().slice(0, 10), day_of_week: new Date().getDay(), start_time: "08:00", end_time: "09:00", subject_id: subjects[0]?.id ?? null });
     } finally {
       setSavingAvailability(false);
     }
@@ -296,7 +343,7 @@ export default function JadwalView() {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Cari booking..."
+            placeholder="Cari pemesanan..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-3 py-2 border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-blue-400 rounded"
@@ -324,21 +371,40 @@ export default function JadwalView() {
 
             <div className="grid gap-3 sm:grid-cols-3 mb-4">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Hari</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Mata Pelajaran</label>
                 <select
-                  value={newAvailability.day_of_week}
-                  onChange={(e) => setNewAvailability((prev) => ({ ...prev, day_of_week: Number(e.target.value) }))}
+                  value={newAvailability.subject_id ?? ""}
+                  onChange={(e) => setNewAvailability((prev) => ({ ...prev, subject_id: e.target.value ? Number(e.target.value) : null }))}
                   className="w-full border border-gray-200 px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:border-blue-400 rounded"
                 >
-                  {DAY_LABELS.map((label, index) => (
-                    <option key={index} value={index}>{label}</option>
+                  {subjects.length === 0 ? <option value="">Memuat...</option> : null}
+                  {subjects.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Tanggal</label>
+                <input
+                  type="date"
+                  value={newAvailability.date}
+                  onChange={(e) => {
+                    const dateValue = e.target.value;
+                    const dateObj = new Date(dateValue);
+                    setNewAvailability((prev) => ({
+                      ...prev,
+                      date: dateValue,
+                      day_of_week: Number.isNaN(dateObj.getDay()) ? prev.day_of_week : dateObj.getDay(),
+                    }));
+                  }}
+                  className="w-full border border-gray-200 px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:border-blue-400 rounded"
+                />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Mulai</label>
                 <input
                   type="time"
+                  step="600"
                   value={newAvailability.start_time}
                   onChange={(e) => setNewAvailability((prev) => ({ ...prev, start_time: e.target.value }))}
                   className="w-full border border-gray-200 px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:border-blue-400 rounded"
@@ -348,6 +414,7 @@ export default function JadwalView() {
                 <label className="block text-xs font-medium text-gray-600 mb-1">Selesai</label>
                 <input
                   type="time"
+                  step="600"
                   value={newAvailability.end_time}
                   onChange={(e) => setNewAvailability((prev) => ({ ...prev, end_time: e.target.value }))}
                   className="w-full border border-gray-200 px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:border-blue-400 rounded"
@@ -378,7 +445,9 @@ export default function JadwalView() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {availabilities.map((item) => (
                     <div key={item.id} className="border border-gray-200 p-2 rounded">
-                      <div className="text-xs font-medium text-gray-900">{DAY_LABELS[item.day_of_week]}</div>
+                      <div className="text-xs font-medium text-gray-900">
+                        {item.date ? formatDateLabel(item.date) : DAY_LABELS[item.day_of_week]}
+                      </div>
                       <div className="text-[10px] text-gray-500">{item.start_time} - {item.end_time}</div>
                       <button
                         onClick={() => handleDeleteAvailability(item.id)}
