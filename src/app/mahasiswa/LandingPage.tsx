@@ -164,8 +164,8 @@ export default function LandingPage({
             };
           });
           const fiveStarTestimonials = ratings
-            .filter((item) => item.rating === 5)
-            .sort((a, b) => {
+            .filter((item: any) => item.rating === 5)
+            .sort((a: any, b: any) => {
               if (!a.created_at || !b.created_at) return 0;
               return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
             })
@@ -365,7 +365,7 @@ export default function LandingPage({
   ];
 
   const topRatedTutors = [...tutors]
-    .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
+    .sort((a: TutorCardType, b: TutorCardType) => (b.rating ?? 0) - (a.rating ?? 0))
     .slice(0, 3);
 
   return (

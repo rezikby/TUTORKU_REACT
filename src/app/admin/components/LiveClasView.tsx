@@ -772,6 +772,21 @@ export default function LiveClasView({ navigate, bookingId, user }: LiveClasView
     }
   }, [bookingId, session?.status, hasJoinedSession]);
 
+  // Auto-join for tutor: when tutor opens the tutor view for a session
+  // that is already `ongoing`, join immediately without showing any
+  // extra approval dialog. This ensures tutors don't need to confirm
+  // joining when they start the meet.
+  useEffect(() => {
+    if (!bookingId || !session) return;
+    if (!user || user.role !== 'tutor') return;
+    if (session.status !== 'ongoing') return;
+    if (hasJoinedSession) return;
+    if (isJoiningSession) return;
+
+    // call tutor join flow automatically
+    void handleJoinSession();
+  }, [bookingId, session?.status, user?.id, user?.role, hasJoinedSession, isJoiningSession]);
+
   useEffect(() => {
     if (!hasJoinedSession || localStream) return;
     if (session?.status !== "ongoing") return;
@@ -1313,7 +1328,8 @@ export default function LiveClasView({ navigate, bookingId, user }: LiveClasView
         addActivity("Tutor join");
         tutorJoinLoggedRef.current = true;
       }
-      addNotification("Siswa bergabung ke kelas", "success");
+      // Visual confirmation for tutor after joining (auto-join or manual)
+      addNotification("Anda telah bergabung sebagai tutor", "success");
 
       if (!localStream) {
         await requestLocalMedia({ video: true, audio: true });

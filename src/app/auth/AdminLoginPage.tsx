@@ -44,6 +44,7 @@ export default function AdminLoginPage({
 }: AdminLoginPageProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -51,61 +52,116 @@ export default function AdminLoginPage({
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12">
-      <div className="w-full max-w-md rounded-3xl border border-border bg-card p-8 shadow-2xl">
-        <h1 className="text-3xl font-extrabold text-white mb-2">Login Admin</h1>
-        <p className="text-sm text-muted-foreground mb-6">
-          Masuk untuk mengelola platform TUTORKU.
-        </p>
+    <div className="min-h-screen flex items-center justify-center bg-[#f0f0f1] px-4 py-12">
+      <div className="w-full max-w-[320px]">
+        {/* Header dengan Logo WordPress style */}
+        <div className="text-center mb-6">
+          <div className="inline-block">
+            <div className="w-[84px] h-[84px] mx-auto bg-[#3858e9] rounded-full flex items-center justify-center mb-4 shadow-md">
+              <span className="text-white text-3xl font-bold tracking-tight">TK</span>
+            </div>
+          </div>
+          <h1 className="text-2xl font-normal text-[#1e1e1e] tracking-wide">
+            Masuk
+          </h1>
+        </div>
 
-        {(error || email || password) && error && (
-          <div className="mb-4 rounded-xl bg-red-500/10 p-3 text-sm text-red-300 border border-red-500">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4" />
-              <span>{error}</span>
+        {/* Error Message - WordPress Style */}
+        {error && (
+          <div className="mb-4 p-3 bg-[#fcf0f1] border-l-4 border-[#d63638] rounded">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-[#d63638] mt-0.5 flex-shrink-0" />
+              <span className="text-sm text-[#1e1e1e]">{error}</span>
             </div>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <label className="block text-sm text-muted-foreground">
-            Email
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="mt-2 w-full rounded-2xl border border-border bg-background/80 px-4 py-3 text-white outline-none focus:border-primary"
-            />
-          </label>
+        {/* Form - WordPress Style */}
+        <form onSubmit={handleSubmit} className="bg-white shadow-md rounded-lg p-6">
+          <div className="space-y-4">
+            {/* Username/Email Field */}
+            <div>
+              <label className="block text-sm font-medium text-[#1e1e1e] mb-1">
+                Nama Pengguna atau Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder=""
+                className="w-full rounded border border-[#dcdcde] px-3 py-2 text-sm text-[#1e1e1e] outline-none transition-all focus:border-[#3858e9] focus:shadow-[0_0_0_1px_#3858e9] bg-white"
+              />
+            </div>
 
-          <label className="block text-sm text-muted-foreground">
-            Password
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="mt-2 w-full rounded-2xl border border-border bg-background/80 px-4 py-3 text-white outline-none focus:border-primary"
-            />
-          </label>
+            {/* Password Field */}
+            <div>
+              <label className="block text-sm font-medium text-[#1e1e1e] mb-1">
+                Kata Sandi
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder=""
+                className="w-full rounded border border-[#dcdcde] px-3 py-2 text-sm text-[#1e1e1e] outline-none transition-all focus:border-[#3858e9] focus:shadow-[0_0_0_1px_#3858e9] bg-white"
+              />
+            </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-2xl bg-primary py-3 text-sm font-semibold text-white hover:bg-primary/90 transition-all disabled:opacity-60"
-          >
-            {loading ? "Memuat..." : "Masuk"}
-          </button>
+            {/* Remember Me Checkbox - WordPress Style */}
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 text-sm text-[#1e1e1e] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 rounded border-[#dcdcde] text-[#3858e9] focus:ring-[#3858e9] focus:ring-offset-0 cursor-pointer"
+                />
+                <span>Ingat Saya</span>
+              </label>
+            </div>
+
+            {/* Login Button - WordPress Style */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[#3858e9] hover:bg-[#2145e0] text-white font-medium py-2.5 rounded transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {loading ? "Memproses..." : "Masuk"}
+            </button>
+          </div>
         </form>
 
-        <button
-          type="button"
-          onClick={() => navigate("login")}
-          className="w-full mt-4 text-center text-xs text-muted-foreground hover:text-white"
-        >
-          Kembali ke halaman masuk siswa
-        </button>
+        {/* Lupa Password Link - WordPress Style */}
+        <div className="text-center mt-4">
+          <button
+            type="button"
+            onClick={() => navigate("login")}
+            className="text-sm text-[#3858e9] hover:text-[#2145e0] hover:underline"
+          >
+            Lupa kata sandi?
+          </button>
+        </div>
+
+        {/* Go to Student Page - WordPress Style (mirip "Go to Lutfi's Blog") */}
+        <div className="text-center mt-6 pt-4 border-t border-[#dcdcde]">
+          <button
+            type="button"
+            onClick={() => navigate("login")}
+            className="text-sm text-[#3858e9] hover:text-[#2145e0] hover:underline"
+          >
+            ← Kembali ke Halaman Siswa
+          </button>
+        </div>
+
+        {/* Footer WordPress Style */}
+        <div className="mt-8 text-center text-xs text-[#646970] leading-relaxed">
+          <p>TUTORKU Admin</p>
+          <p className="mt-1 opacity-70">
+            © 2026 TUTORKU. Hak Cipta Dilindungi.
+          </p>
+        </div>
       </div>
     </div>
   );

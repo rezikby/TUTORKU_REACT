@@ -956,6 +956,7 @@ export default function App() {
       const data = await response.json();
 
       if (!response.ok) {
+        const message = data.message || "Login gagal";
         if (response.status === 404 || data.requires_otp) {
           return {
             success: false,
@@ -966,7 +967,8 @@ export default function App() {
               "Nomor handphone belum terdaftar. Silakan verifikasi.",
           };
         }
-        throw new Error(data.message || "Login gagal");
+
+        return { success: false, message };
       }
 
       const newToken = data.token;
@@ -978,11 +980,12 @@ export default function App() {
         return { success: true, role: data.role };
       }
 
-      return { success: false };
+      return { success: false, message: "Login gagal" };
     } catch (error: any) {
       console.error("Error loginWithPhone:", error);
-      toastError(error.message || "Login gagal. Periksa nomor handphone Anda.");
-      return { success: false };
+      const message = error.message || "Login gagal. Periksa nomor handphone Anda.";
+      toastError(message);
+      return { success: false, message };
     } finally {
       setLoading((prev) => ({ ...prev, auth: false }));
     }
@@ -1028,9 +1031,9 @@ export default function App() {
   };
 
   const verifyPhoneOtp = async (
-  phone: string,
-  otp: string,
-): Promise<LoginResult> => {
+    phone: string,
+    otp: string,
+  ): Promise<LoginResult> => {
   setLoading((prev) => ({ ...prev, auth: true }));
   try {
     const csrfToken = getCsrfToken();
@@ -1079,6 +1082,57 @@ export default function App() {
     setLoading((prev) => ({ ...prev, auth: false }));
   }
 };
+
+  const loginTutorWithEmailPassword = async (
+    email: string,
+    password: string,
+  ): Promise<LoginResult> => {
+    setLoading((prev) => ({ ...prev, auth: true }));
+    try {
+      const csrfToken = getCsrfToken();
+      const headers: HeadersInit = {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      };
+      if (csrfToken) {
+        headers["X-XSRF-TOKEN"] = csrfToken;
+      }
+
+      const response = await fetch(`${API_BASE}/auth/tutor/login`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          device_name: "TUTORKU Web",
+        }),
+        credentials: "include",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Login gagal");
+      }
+
+      const newToken = data.token;
+      if (newToken) {
+        setToken(newToken);
+        localStorage.setItem("TUTORKU_token", newToken);
+        setUser(data.user);
+        toastSuccess("Login berhasil! Selamat datang di Dashboard Tutor.");
+        return { success: true, role: "tutor" };
+      }
+
+      return { success: false };
+    } catch (error: any) {
+      console.error("Error loginTutorWithEmailPassword:", error);
+      toastError(error.message || "Email atau password salah. Silakan coba lagi.");
+      return { success: false, message: error.message };
+    } finally {
+      setLoading((prev) => ({ ...prev, auth: false }));
+    }
+  };
 
   const startGoogleLogin = async (role: "student" | "tutor" = "student") => {
     try {
@@ -1477,17 +1531,24 @@ export default function App() {
       const search = window.location.search || "";
 
       const handleGoogleCallback = (queryString: string) => {
-        const params = new URLSearchParams(queryString);
-        const googleToken = params.get("token");
-        const userRole = params.get("role");
-        const error = params.get("error");
+          const params = new URLSearchParams(queryString);
+          const googleToken = params.get("token");
+          const userRole = params.get("role");
+          const error = params.get("error");
 
-        if (error) {
-          setLoginError("Login Google gagal. Silakan coba lagi.");
-          navigate("login");
-          return true;
-        }
+          if (error) {
+            const until = params.get("until");
+            const message =
+              error === "suspended"
+                ? until
+                  ? `Akun kamu ditangguhkan sementara hingga ${new Date(until).toLocaleString()}. Hubungi admin TUTORKU jika ingin klarifikasi.`
+                  : "Akun kamu telah dinonaktifkan permanen. Hubungi admin TUTORKU."
+                : "Login Google gagal. Silakan coba lagi.";
 
+            setLoginError(message);
+            navigate("login");
+            return true;
+          }
         if (googleToken) {
           setToken(googleToken);
           localStorage.setItem("TUTORKU_token", googleToken);
@@ -1574,6 +1635,7 @@ export default function App() {
               : "login";
 
         if (err) {
+          const until = params.get("until");
           const message =
             err === "google_failed"
               ? "Login Google gagal. Silakan coba lagi."
@@ -1583,7 +1645,11 @@ export default function App() {
                   ? "Akun ini adalah tutor. Silakan gunakan opsi tutor pada halaman login ini."
                   : err === "role_admin"
                     ? "Akun ini adalah admin. Silakan masuk lewat halaman Login Admin."
-                    : "Login gagal. Silakan coba lagi.";
+                    : err === "suspended"
+                      ? until
+                        ? `Akun kamu ditangguhkan sementara hingga ${new Date(until).toLocaleString()}. Hubungi admin TUTORKU jika ingin klarifikasi.`
+                        : "Akun kamu telah dinonaktifkan permanen. Hubungi admin TUTORKU."
+                      : "Login gagal. Silakan coba lagi.";
 
           if (err === "role_tutor") {
             setLoginMode("tutor");
@@ -1771,9 +1837,11 @@ export default function App() {
               loginWithPhone={loginWithPhone}
               verifyPhoneOtp={verifyPhoneOtp}
               sendPhoneOtp={sendPhoneOtp}
+              loginTutorWithEmailPassword={loginTutorWithEmailPassword}
               otpCooldown={otpCooldown}
               loading={loading.auth}
               error={loginError}
+              mode={loginMode}
             />
           )}
 

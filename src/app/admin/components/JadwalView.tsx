@@ -91,15 +91,26 @@ export default function JadwalView() {
       .catch((error) => console.error(error))
       .finally(() => setIsLoadingAvailabilities(false));
 
-    // load subjects for availability creation
-    adminApiFetch("/subjects")
+    // Prefer tutor's selected subjects from profile; fallback to all subjects
+    adminApiFetch("/profile")
       .then((data) => {
-        const list = data.data ?? data;
-        if (Array.isArray(list)) {
+        const user = data.data ?? data;
+        const tutorSubjects = user?.tutor_profile?.subjects ?? [];
+        if (Array.isArray(tutorSubjects) && tutorSubjects.length > 0) {
+          setSubjects(tutorSubjects.map((s: any) => ({ id: s.id, name: s.name })));
+          setNewAvailability((prev) => ({ ...prev, subject_id: tutorSubjects[0].id }));
+          return;
+        }
+
+        // fallback to global subjects list
+        return adminApiFetch("/subjects");
+      })
+      .then((maybeSubjects) => {
+        if (!maybeSubjects) return;
+        const list = maybeSubjects.data ?? maybeSubjects;
+        if (Array.isArray(list) && list.length > 0) {
           setSubjects(list.map((s: any) => ({ id: s.id, name: s.name })));
-          if (list.length > 0) {
-            setNewAvailability((prev) => ({ ...prev, subject_id: list[0].id }));
-          }
+          setNewAvailability((prev) => ({ ...prev, subject_id: prev.subject_id ?? list[0].id }));
         }
       })
       .catch(() => {})

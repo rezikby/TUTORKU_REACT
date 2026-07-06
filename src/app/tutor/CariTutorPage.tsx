@@ -117,7 +117,7 @@ function TutorCardUI({ tutor, onView, onBook }: { tutor: any; onView: () => void
             onClick={onView}
             className="h-8 px-3 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition"
           >
-            {t("findTutor.profile")}
+            {t("findTutor.viewProfile")}
           </button>
           <button
             onClick={onBook}

@@ -75,7 +75,7 @@ export function DashboardSiswaPage({
         const overviewData = data.data ?? data;
         setChartData(normalizeChartData(overviewData.monthly_study_minutes));
       } catch (error) {
-        console.error("Gagal memuat data grafik", error);
+        console.error(t("dashboard.errorLoadingChart"), error);
         if (selectedMonth === "this" && overview?.monthly_study_minutes) {
           setChartData(overview.monthly_study_minutes);
         } else {
@@ -87,16 +87,16 @@ export function DashboardSiswaPage({
     };
 
     loadMonthStudyData();
-  }, [selectedMonth, apiFetch, overview]);
+  }, [selectedMonth, apiFetch, overview, t]);
 
   const upcoming = overview?.upcoming_session;
   const monthlyData = chartData;
   const totalMinutes = monthlyData.reduce((acc, item) => acc + item.minutes, 0);
   const studyTimeLabel = totalMinutes > 0
     ? totalMinutes < 60
-      ? `${totalMinutes} Menit`
-      : `${Math.floor(totalMinutes / 60)} Jam`
-    : "Tidak ada jam belajar";
+      ? t("dashboard.timeMinutes", { count: totalMinutes })
+      : t("dashboard.timeHours", { count: Math.floor(totalMinutes / 60) })
+    : t("dashboard.noStudyHours");
 
   const selectedMonthName = (() => {
     const today = new Date();
@@ -133,9 +133,9 @@ export function DashboardSiswaPage({
 
   const studyHoursLabel = overview?.total_study_hours
     ? overview.total_study_hours < 1
-      ? `${Math.round(overview.total_study_hours * 60)} Menit`
-      : `${Math.round(overview.total_study_hours)} Jam`
-    : "Tidak ada jam belajar";
+      ? t("dashboard.timeMinutes", { count: Math.round(overview.total_study_hours * 60) })
+      : t("dashboard.timeHours", { count: Math.round(overview.total_study_hours) })
+    : t("dashboard.noStudyHours");
 
   const stats = [
     { 
@@ -293,8 +293,8 @@ export function DashboardSiswaPage({
                       return (
                         <div className="bg-white border border-gray-200 rounded p-2 text-xs text-slate-800">
                           <div className="font-semibold mb-1">{label}</div>
-                          <div>{data.minutes} menit belajar</div>
-                          <div>{data.completed_sessions} sesi selesai</div>
+                          <div>{t("dashboard.tooltipStudyMinutes", { count: data.minutes })}</div>
+                          <div>{t("dashboard.tooltipCompletedSessions", { count: data.completed_sessions })}</div>
                         </div>
                       );
                     }}

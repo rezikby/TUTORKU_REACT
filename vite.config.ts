@@ -28,26 +28,26 @@ export default defineConfig({
   },
 
   server: {
-    host: "localhost",
+    host: "rezi.nlabs.id",
     port: 5173,
     strictPort: true,
-    https: false,
+    https: true,
     allowedHosts: "all",
     proxy: {
       "/api": {
-        target: "http://localhost:8000",
+        target: "https://rezi-laravel.nlabs.id",
         changeOrigin: true,
-        secure: false,
+        secure: true,
       },
       "/sanctum": {
-        target: "http://localhost:8000",
+        target: "https://rezi-laravel.nlabs.id",
         changeOrigin: true,
-        secure: false,
+        secure: true,
       },
       "/broadcasting": {
-        target: "http://localhost:8000",
+        target: "https://rezi-laravel.nlabs.id",
         changeOrigin: true,
-        secure: false,
+        secure: true,
       },
     },
   },

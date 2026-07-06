@@ -25,12 +25,16 @@ export function TutorRegistrationPage({
   const [profile, setProfile] = useState<any>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [captchaVerified, setCaptchaVerified] = useState(false);
   const recaptchaRef = useRef<HTMLDivElement>(null);
+  const initialCaptchaRef = useRef<HTMLDivElement>(null);
   const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
+  const [initialCaptchaToken, setInitialCaptchaToken] = useState<string | null>(null);
   const recaptchaSiteKey = (import.meta as any).env?.VITE_RECAPTCHA_SITE_KEY ?? "";
 
   // Step 2 — Data Diri
   const [headline, setHeadline] = useState("");
+  const [email, setEmail] = useState("");
   const [bio, setBio] = useState("");
   const [pricePerHour, setPricePerHour] = useState(50000);
   const [experienceYears, setExperienceYears] = useState(1);
@@ -82,6 +86,46 @@ export function TutorRegistrationPage({
     loadOrStart();
   }, []);
 
+  // Show success alert when tutor verified by admin
+  useEffect(() => {
+    if (profile?.registration_submitted && profile?.verification_status === "verified") {
+      setTimeout(() => {
+        alertSuccess(t("tutorRegistration.submittedVerifiedAlert"), t("tutorRegistration.submittedVerifiedAlertMessage"));
+      }, 500);
+    }
+  }, [profile?.verification_status]);
+
+  // Load reCAPTCHA script
+  useEffect(() => {
+    if ((window as any).grecaptcha) return;
+    const script = document.createElement("script");
+    script.src = "https://www.google.com/recaptcha/api.js";
+    script.async = true;
+    document.body.appendChild(script);
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
+
+  // Render initial CAPTCHA verification (before registration form)
+  useEffect(() => {
+    if (loadingProfile || captchaVerified || !recaptchaSiteKey) return;
+    const interval = setInterval(() => {
+      const grecaptcha = (window as any).grecaptcha;
+      if (grecaptcha && initialCaptchaRef.current && !initialCaptchaRef.current.hasChildNodes()) {
+        grecaptcha.render(initialCaptchaRef.current, {
+          sitekey: recaptchaSiteKey,
+          callback: (token: string) => {
+            setInitialCaptchaToken(token);
+            setCaptchaVerified(true);
+          },
+        });
+        clearInterval(interval);
+      }
+    }, 300);
+    return () => clearInterval(interval);
+  }, [loadingProfile, captchaVerified, recaptchaSiteKey]);
+
   useEffect(() => {
     if (profile?.registration_step !== 4) return;
     if ((window as any).grecaptcha) return;
@@ -94,25 +138,27 @@ export function TutorRegistrationPage({
     };
   }, [profile?.registration_step]);
 
-  useEffect(() => {
-    if (profile?.registration_step !== 1 || !recaptchaRef.current || !recaptchaSiteKey) return;
-    const interval = setInterval(() => {
-      const grecaptcha = (window as any).grecaptcha;
-      if (grecaptcha && recaptchaRef.current && !recaptchaRef.current.hasChildNodes()) {
-        grecaptcha.render(recaptchaRef.current, {
-          sitekey: recaptchaSiteKey,
-          callback: (token: string) => setRecaptchaToken(token),
-        });
-        clearInterval(interval);
-      }
-    }, 300);
-    return () => clearInterval(interval);
-  }, [profile?.registration_step, recaptchaSiteKey]);
-
   if (loadingProfile || !profile) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-gray-400 text-sm">{t("tutorRegistration.loadingApplication")}</div>
+      </div>
+    );
+  }
+
+  // Show CAPTCHA verification screen if not verified yet
+  if (!captchaVerified && recaptchaSiteKey) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center px-4">
+        <div className="flex flex-col items-center gap-4">
+          <div ref={initialCaptchaRef} className="flex justify-center" />
+          <button
+            onClick={() => navigate("dashboard-siswa")}
+            className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            ← Kembali
+          </button>
+        </div>
       </div>
     );
   }
@@ -124,6 +170,7 @@ export function TutorRegistrationPage({
     try {
       const formData = new FormData();
       formData.append("headline", headline);
+      formData.append("email", email);
       formData.append("bio", bio);
       formData.append("price_per_hour", String(pricePerHour));
       formData.append("experience_years", String(experienceYears));
@@ -135,11 +182,9 @@ export function TutorRegistrationPage({
       formData.append("mode_offline", modeOffline ? "1" : "0");
       formData.append("subject_ids[]", "1");
       if (profilePhoto) formData.append("profile_photo", profilePhoto);
-      if (recaptchaToken) formData.append("recaptcha_token", recaptchaToken);
 
       const data = await apiFetch("/tutor/registration/step-2", { method: "PUT", body: formData });
       setProfile(data.data ?? data);
-      setRecaptchaToken(null);
       toastSuccess(t("tutorRegistration.step2Saved"));
     } catch (error: any) {
       toastError(error.message || t("tutorRegistration.step2SaveFailed"));
@@ -208,8 +253,12 @@ export function TutorRegistrationPage({
     return (
       <div className="min-h-screen bg-white flex items-center justify-center px-4">
         <div className="max-w-md w-full border border-gray-200 p-6 text-center rounded">
-          <div className="w-16 h-16 bg-blue-50 border border-blue-200 flex items-center justify-center mx-auto mb-4 rounded">
-            <ShieldCheck size={28} className="text-blue-600" />
+          <div className={`w-16 h-16 border flex items-center justify-center mx-auto mb-4 rounded ${
+            profile.verification_status === "verified" 
+              ? "bg-green-50 border-green-200" 
+              : "bg-blue-50 border-blue-200"
+          }`}>
+            <ShieldCheck size={28} className={profile.verification_status === "verified" ? "text-green-600" : "text-blue-600"} />
           </div>
           <h1 className="text-xl font-extrabold text-gray-900 mb-2">
             {profile.verification_status === "verified" ? t("tutorRegistration.submittedHeadingVerified") : 
@@ -287,13 +336,6 @@ export function TutorRegistrationPage({
             <h3 className="text-base font-bold text-gray-900 mb-4">{t("tutorRegistration.step1Title")}</h3>
             
             <div className="space-y-4">
-              {recaptchaSiteKey && (
-                <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
-                  <p className="text-sm text-blue-700 font-medium mb-3">{t("tutorRegistration.recaptchaNotice")}</p>
-                  <div ref={recaptchaRef} className="flex justify-center" />
-                </div>
-              )}
-
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">{t("tutorRegistration.headlineLabel")}</label>
                 <input 
@@ -302,6 +344,18 @@ export function TutorRegistrationPage({
                   placeholder={t("tutorRegistration.headlinePlaceholder")}
                   className="w-full border-b border-gray-200 px-0 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-400 transition-colors"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                <input 
+                  type="email"
+                  value={email} 
+                  onChange={(e) => setEmail(e.target.value)} 
+                  placeholder="nama@email.com"
+                  className="w-full border-b border-gray-200 px-0 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-400 transition-colors"
+                />
+                <p className="text-xs text-gray-500 mt-1">Email yang akan menerima password tutor saat disetujui admin</p>
               </div>
 
               <div>
@@ -396,7 +450,7 @@ export function TutorRegistrationPage({
 
               <button 
                 onClick={submitStep2} 
-                disabled={submitting || (recaptchaSiteKey && !recaptchaToken)} 
+                disabled={submitting} 
                 className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 rounded mt-2"
               >
                 {submitting ? t("tutorRegistration.saving") : t("tutorRegistration.saveAndContinue")}

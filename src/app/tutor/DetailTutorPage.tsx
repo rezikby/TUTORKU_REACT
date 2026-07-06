@@ -13,6 +13,7 @@ import {
   Flag,
   Users,
 } from "lucide-react";
+import ReportTutorPopup from "../mahasiswa/ReportTutorPopup";
 import { toastSuccess, toastError } from "../lib/swal";
 
 const API_ROOT = (import.meta as any).env?.VITE_API_URL?.replace(/\/api\/?$/, "") ?? "https://rezi-laravel.nlabs.id";
@@ -43,6 +44,10 @@ export default function DetailTutorPage(props: any) {
   const [schedules, setSchedules] = useState<any[]>([]);
   const [loadingTutor, setLoadingTutor] = useState(true);
   const [activeTab, setActiveTab] = useState<"tentang" | "jadwal" | "ulasan">("tentang");
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportCategory, setReportCategory] = useState<string>("penipuan");
+  const [reportReason, setReportReason] = useState<string>("");
+  const [reportSubmitting, setReportSubmitting] = useState(false);
 
   const loadTutor = async () => {
     if (!tutorId) return;
@@ -193,6 +198,16 @@ export default function DetailTutorPage(props: any) {
     } catch {}
   };
 
+  const reportCategories = [
+    { value: "penipuan", label: t("detailTutor.reportCategoryPenipuan") },
+    { value: "spam", label: t("detailTutor.reportCategorySpam") },
+    { value: "konten_tidak_sesuai", label: t("detailTutor.reportCategoryKontenTidakSesuaikan") },
+    { value: "pelecehan", label: t("detailTutor.reportCategoryPelecehan") },
+    { value: "lainnya", label: t("detailTutor.reportCategoryLainnya") },
+  ];
+
+  const canSubmitReport = reportCategory !== "lainnya" || reportReason.trim().length > 0;
+
   if (!tutorId) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
@@ -301,7 +316,11 @@ export default function DetailTutorPage(props: any) {
                 <button onClick={handleShare} className="px-2 xs:px-3 py-1.5 xs:py-2 border border-gray-300 hover:bg-gray-50 transition-colors rounded">
                   <Share2 size={14} className="text-gray-400" />
                 </button>
-                <button className="px-2 xs:px-3 py-1.5 xs:py-2 border border-gray-300 hover:bg-gray-50 transition-colors rounded">
+                <button
+                  type="button"
+                  onClick={() => setReportOpen(true)}
+                  className="px-2 xs:px-3 py-1.5 xs:py-2 border border-gray-300 hover:bg-gray-50 transition-colors rounded"
+                >
                   <Flag size={14} className="text-gray-400" />
                 </button>
               </div>
@@ -412,6 +431,7 @@ export default function DetailTutorPage(props: any) {
                 <span>{t("detailTutor.share")}</span>
               </button>
               <button
+                onClick={() => setReportOpen(true)}
                 className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
               >
                 <Flag size={14} className="text-gray-400" />
@@ -627,6 +647,14 @@ export default function DetailTutorPage(props: any) {
 
         </div>
       </div>
+
+      <ReportTutorPopup
+        tutorName={tutor.name}
+        tutorId={tutor.id}
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        apiFetch={apiFetch}
+      />
     </div>
   );
 }

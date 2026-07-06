@@ -7,6 +7,7 @@ import {
   Mail,
   Loader2,
   Phone,
+  Lock,
 } from "lucide-react";
 
 type Page =
@@ -43,6 +44,14 @@ interface LoginPageProps {
     role?: string;
   }>;
   sendPhoneOtp: (phone: string) => Promise<boolean>;
+  loginTutorWithEmailPassword: (
+    email: string,
+    password: string,
+  ) => Promise<{
+    success: boolean;
+    message?: string;
+    role?: string;
+  }>;
   otpCooldown: number;
   loading: boolean;
   error: string | null;
@@ -55,6 +64,7 @@ export default function LoginPage({
   loginWithPhone,
   verifyPhoneOtp,
   sendPhoneOtp,
+  loginTutorWithEmailPassword,
   otpCooldown,
   loading,
   error,
@@ -65,6 +75,8 @@ export default function LoginPage({
   const [step, setStep] = useState<"login" | "otp">("login");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [countdown, setCountdown] = useState(0);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [otpError, setOtpError] = useState<string | null>(null);
@@ -74,6 +86,10 @@ export default function LoginPage({
     setStep("login");
     setLoginError(null);
     setOtpError(null);
+    setPhone("");
+    setEmail("");
+    setPassword("");
+    setOtp("");
   }, [mode]);
 
   useEffect(() => {
@@ -88,7 +104,7 @@ export default function LoginPage({
 
   useEffect(() => {
     if (loginError) setLoginError(null);
-  }, [phone, activeMode]);
+  }, [phone, email, password, activeMode]);
 
   useEffect(() => {
     if (otpError) setOtpError(null);
@@ -115,6 +131,22 @@ export default function LoginPage({
     } else if (result.requires_otp) {
       setStep("otp");
       setOtpError(null);
+    } else if (result.message) {
+      setLoginError(result.message);
+    }
+  };
+
+  const handleEmailPasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!email.trim() || !password.trim()) {
+      setLoginError(t("auth.emailPasswordRequired") || "Email dan password harus diisi");
+      return;
+    }
+
+    const result = await loginTutorWithEmailPassword(email, password);
+    if (result.success) {
+      navigate("admin"); // Dashboard tutor
     } else if (result.message) {
       setLoginError(result.message);
     }
@@ -373,82 +405,195 @@ export default function LoginPage({
             </div>
           )}
 
-          <form onSubmit={handlePhoneLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                {t("auth.phoneLabel")}
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Phone className="h-5 w-5 text-gray-400" />
+          {renderModeTabs()}
+
+          {activeMode === "tutor" ? (
+            <>
+              {/* TUTOR MODE: Email/Password Form */}
+              <form onSubmit={handleEmailPasswordLogin} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                    {t("auth.emailLabel") || "Email"}
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Mail className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder={t("auth.emailPlaceholder") || "nama@email.com"}
+                      className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-[#2563EB] focus:border-transparent outline-none transition-all"
+                    />
+                  </div>
                 </div>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder={t("auth.phonePlaceholder")}
-                  className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-[#2563EB] focus:border-transparent outline-none transition-all"
-                />
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                    {t("auth.passwordLabel") || "Password"}
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Lock className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder={t("auth.passwordPlaceholder") || "••••••••"}
+                      className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-[#2563EB] focus:border-transparent outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3 bg-[#2563EB] text-white font-medium rounded-lg hover:bg-[#1D4ED8] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      {t("auth.processing") || "Memproses..."}
+                    </>
+                  ) : (
+                    <>
+                      {t("auth.loginButton") || "Masuk"}
+                      <ArrowRight className="w-5 h-5" />
+                    </>
+                  )}
+                </button>
+              </form>
+
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-200 dark:border-gray-700" />
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-4 bg-white dark:bg-gray-950 text-gray-500">
+                    {t("auth.or") || "atau"}
+                  </span>
+                </div>
               </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
-                {t("auth.phoneRequired")}
-              </p>
-            </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 bg-[#2563EB] text-white font-medium rounded-lg hover:bg-[#1D4ED8] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Memproses...
-                </>
-              ) : (
-                <>
-                  Masuk dengan Handphone
-                  <ArrowRight className="w-5 h-5" />
-                </>
-              )}
-            </button>
-          </form>
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setActiveMode("student")}
+                  className="w-full py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-all flex items-center justify-center gap-3"
+                >
+                  <Phone className="h-5 w-5" />
+                  <span>{t("auth.loginWithPhone") || "Masuk dengan Handphone"}</span>
+                </button>
 
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200 dark:border-gray-700" />
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white dark:bg-gray-950 text-gray-500">
-                {t("atau")}
-              </span>
-            </div>
-          </div>
+                <button
+                  onClick={handleGoogleLogin}
+                  className="w-full py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-all flex items-center justify-center gap-3"
+                >
+                  <svg width="20" height="20" viewBox="0 0 48 48">
+                    <path
+                      fill="#FFC107"
+                      d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"
+                    />
+                    <path
+                      fill="#FF3D00"
+                      d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"
+                    />
+                    <path
+                      fill="#4CAF50"
+                      d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"
+                    />
+                    <path
+                      fill="#1976D2"
+                      d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"
+                    />
+                  </svg>
+                  <span>{t("auth.loginWithGoogle") || "Masuk dengan Google"}</span>
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* STUDENT MODE: Phone Form */}
+              <form onSubmit={handlePhoneLogin} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                    {t("auth.phoneLabel")}
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Phone className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder={t("auth.phonePlaceholder")}
+                      className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-[#2563EB] focus:border-transparent outline-none transition-all"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+                    {t("auth.phoneRequired")}
+                  </p>
+                </div>
 
-          <button
-            onClick={handleGoogleLogin}
-            className="w-full py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-all flex items-center justify-center gap-3"
-          >
-            <svg width="20" height="20" viewBox="0 0 48 48">
-              <path
-                fill="#FFC107"
-                d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"
-              />
-              <path
-                fill="#FF3D00"
-                d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"
-              />
-              <path
-                fill="#4CAF50"
-                d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"
-              />
-              <path
-                fill="#1976D2"
-                d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"
-              />
-            </svg>
-            <span>{t("auth.loginWithGoogle")}</span>
-          </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3 bg-[#2563EB] text-white font-medium rounded-lg hover:bg-[#1D4ED8] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Memproses...
+                    </>
+                  ) : (
+                    <>
+                      {t("auth.loginWithPhone")}
+                      <ArrowRight className="w-5 h-5" />
+                    </>
+                  )}
+                </button>
+              </form>
+
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-200 dark:border-gray-700" />
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-4 bg-white dark:bg-gray-950 text-gray-500">
+                    {t("auth.or") || "atau"}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                onClick={handleGoogleLogin}
+                className="w-full py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-all flex items-center justify-center gap-3"
+              >
+                <svg width="20" height="20" viewBox="0 0 48 48">
+                  <path
+                    fill="#FFC107"
+                    d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"
+                  />
+                  <path
+                    fill="#FF3D00"
+                    d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"
+                  />
+                  <path
+                    fill="#4CAF50"
+                    d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"
+                  />
+                  <path
+                    fill="#1976D2"
+                    d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"
+                  />
+                </svg>
+                <span>{t("auth.loginWithGoogle")}</span>
+              </button>
+            </>
+          )}
 
           <p className="text-center text-sm text-gray-600 dark:text-gray-400 mt-6">
             {t("auth.noAccount")}{" "}
