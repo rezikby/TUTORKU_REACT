@@ -7,7 +7,7 @@ import { Button } from "../components/ui/button";
 import { Textarea } from "../components/ui/textarea";
 
 const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
-const API_BASE = (env.VITE_API_URL ?? "http://localhost:8000/api").replace(/\/?$/, "");
+const API_BASE = (env.VITE_API_URL ?? "https://rezi-laravel.nlabs.id/api").replace(/\/?$/, "");
 const OPENROUTER_API_KEY = (env.VITE_OPENROUTER_API_KEY || env.OPENROUTER_API_KEY || "").trim();
 const OPENROUTER_MODEL = (env.VITE_OPENROUTER_MODEL || env.OPENROUTER_MODEL || "mistral-7b-instruct").trim();
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";

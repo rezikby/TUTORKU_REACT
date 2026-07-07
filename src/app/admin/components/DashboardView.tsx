@@ -1,6 +1,6 @@
 // frontend/src/app/admin/components/DashboardView.tsx
 import { useEffect, useMemo, useState } from "react";
-import { Users, Calendar, DollarSign, Star, Clock, TrendingUp, Award, BookOpen, UserPlus, Target, Wallet, Medal } from "lucide-react";
+import { Users, Calendar, DollarSign, Star, Clock, TrendingUp, Award, BookOpen, UserPlus, Target, Wallet, Medal, MapPin } from "lucide-react";
 import { adminApiFetch } from "../adminApi";
 
 type User = {
@@ -21,6 +21,8 @@ type BookingSession = {
   start_time: string;
   duration_minutes: number;
   mode: string;
+  location_latitude?: number | null;
+  location_longitude?: number | null;
   student: { name: string } | null;
   subject: { name?: string | null } | null;
 };
@@ -191,13 +193,27 @@ export default function DashboardView({ user }: DashboardViewProps) {
                       {formatDate(session.date)}, {session.start_time} · {session.duration_minutes} menit
                     </p>
                   </div>
-                  <button
-                    onClick={() => handleStartSession(session.id)}
-                    disabled={startingId === session.id}
-                    className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
-                  >
-                    {startingId === session.id ? "Memulai..." : "Mulai"}
-                  </button>
+                  {session.mode === "offline" ? (
+                    <a
+                      href={session.location_latitude != null && session.location_longitude != null ?
+                        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${session.location_latitude},${session.location_longitude}`)}`
+                        : "#/"}
+                      target={session.location_latitude != null && session.location_longitude != null ? "_blank" : undefined}
+                      rel={session.location_latitude != null && session.location_longitude != null ? "noreferrer" : undefined}
+                      className="inline-flex items-center gap-1 px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                    >
+                      <MapPin size={14} />
+                      Lokasi
+                    </a>
+                  ) : (
+                    <button
+                      onClick={() => handleStartSession(session.id)}
+                      disabled={startingId === session.id}
+                      className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    >
+                      {startingId === session.id ? "Memulai..." : "Mulai"}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

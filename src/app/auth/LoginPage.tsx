@@ -120,14 +120,7 @@ export default function LoginPage({
 
     const result = await loginWithPhone(phone);
     if (result.success) {
-      // Route berdasarkan role ke dashboard yang sesuai
-      if (result.role === "tutor") {
-        navigate("admin"); // Dashboard tutor
-      } else if (result.role === "admin") {
-        navigate("platform-admin"); // Dashboard admin
-      } else {
-        navigate("dashboard-siswa"); // Dashboard siswa
-      }
+      return;
     } else if (result.requires_otp) {
       setStep("otp");
       setOtpError(null);
@@ -168,19 +161,7 @@ export default function LoginPage({
       return;
     }
 
-    const loginResult = await loginWithPhone(phone);
-    if (loginResult.success) {
-      if (loginResult.role === "tutor") {
-        navigate("admin");
-      } else if (loginResult.role === "admin") {
-        navigate("platform-admin");
-      } else {
-        navigate("dashboard-siswa");
-      }
-      return;
-    }
-
-    setOtpError(loginResult.message || t("auth.verifySuccess"));
+    return;
   };
 
   const handleResendOtp = async () => {

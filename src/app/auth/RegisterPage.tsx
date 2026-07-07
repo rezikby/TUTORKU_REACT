@@ -52,11 +52,8 @@ export default function RegisterPage({
   const [step, setStep] = useState<"register" | "otp">("register");
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
-  const [otp, setOtp] = useState("");
   const [countdown, setCountdown] = useState(0);
   const [registerError, setRegisterError] = useState<string | null>(null);
-  const [otpError, setOtpError] = useState<string | null>(null);
-  const [isVerifying, setIsVerifying] = useState(false);
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -70,75 +67,30 @@ export default function RegisterPage({
   }, [countdown]);
 
   useEffect(() => {
-    if (registerError) setRegisterError(null);
+    if (registerError) {
+      setRegisterError(null);
+    }
   }, [phone, name]);
 
-  useEffect(() => {
-    if (otpError) setOtpError(null);
-  }, [otp]);
-
   const handlePhoneRegister = async () => {
-  if (!phone.trim() || phone.length < 10) {
-    setRegisterError(t("auth.phoneMinDigits"));
-    return;
-  }
-
-  if (!name.trim()) {
-    setRegisterError(t("auth.nameRequired"));
-    return;
-  }
-
-  const result = await registerWithPhone(phone, name);
-  if (result.success) {
-    if (result.requires_verification) {
-      setStep("otp");
-      setOtpError(null);
-    } else if (result.role === "tutor") {
-      navigate("admin");
-    } else {
-      navigate("dashboard-siswa");
-    }
-  }
-};
-
-  // ============ PERBAIKI handleVerifyOtp ============
- const handleVerifyOtp = async (e: React.FormEvent) => {
-  e.preventDefault();
-
-  if (otp.length < 5) {
-    setOtpError(t("auth.otpMinDigits"));
-    return;
-  }
-
-  setIsVerifying(true);
-
-  try {
-    const verified = await verifyPhoneOtp(phone, otp);
-    if (!verified.success) {
-      setOtpError(verified.message || t("auth.verifyFailed"));
+    if (!phone.trim() || phone.length < 10) {
+      setRegisterError(t("auth.phoneMinDigits"));
       return;
     }
 
-    if (verified.role === "tutor") {
-      navigate("admin");
-    } else if (verified.role === "admin") {
-      navigate("platform-admin");
-    } else {
-      navigate("dashboard-siswa");
+    if (!name.trim()) {
+      setRegisterError(t("auth.nameRequired"));
+      return;
     }
-  } catch (error: any) {
-    setOtpError(error.message || t("auth.verifyFailed"));
-  } finally {
-    setIsVerifying(false);
-  }
-};
 
-  const handleResendOtp = async () => {
-    if (countdown > 0) return;
-    const success = await sendPhoneOtp(phone);
-    if (success) {
-      setCountdown(60);
-      setOtpError(null);
+    const result = await registerWithPhone(phone, name);
+    if (result.requires_verification) {
+      setStep("otp");
+      return;
+    }
+
+    if (!result.success) {
+      setRegisterError(result.message || t("auth.registerFailed"));
     }
   };
 

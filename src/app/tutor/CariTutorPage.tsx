@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Search, SlidersHorizontal, Star, MapPin, Clock, BookOpen } from "lucide-react";
 import { toastError } from "../lib/swal";
+import type { Tutor } from "./TutorCard";
 
 const API_ROOT = (import.meta as any).env?.VITE_API_URL?.replace(/\/api\/?$/, "") ?? "https://rezi-laravel.nlabs.id";
 
@@ -40,6 +41,14 @@ function TutorCardUI({ tutor, onView, onBook }: { tutor: any; onView: () => void
     : null;
   const price = formatPrice(tutor.price_per_hour ?? tutor.price ?? 0);
   const online = tutor.online ?? tutor.mode_online ?? false;
+  const offline = tutor.mode_offline ?? false;
+  const modeLabel = online && offline
+    ? t("findTutor.modeOnlineOffline")
+    : online
+    ? t("findTutor.online")
+    : offline
+    ? t("findTutor.offline")
+    : t("findTutor.modeUnknown");
   const badge = tutor.badge ?? (tutor.verified ? t("findTutor.topTutor") : null);
   const photoUrl = tutor.photo
     ? tutor.photo.startsWith("http") ? tutor.photo : `${API_ROOT}/storage/${tutor.photo}`
@@ -75,11 +84,13 @@ function TutorCardUI({ tutor, onView, onBook }: { tutor: any; onView: () => void
               <h3 className="font-semibold text-gray-900 text-[15px] leading-tight truncate">{tutor.name}</h3>
               <p className="text-sm text-gray-500 mt-0.5 truncate">{subject}</p>
             </div>
-            {badge && (
-              <span className="shrink-0 text-[10px] px-2 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">
-                {badge}
-              </span>
-            )}
+            <div className="flex items-center gap-1">
+              {badge && (
+                <span className="shrink-0 text-[10px] px-2 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">
+                  {badge}
+                </span>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-1 mt-1.5">
             <Star size={13} className="fill-yellow-400 text-yellow-400" />
@@ -97,6 +108,9 @@ function TutorCardUI({ tutor, onView, onBook }: { tutor: any; onView: () => void
         )}
         <span className="flex items-center gap-1"><Clock size={11} />{experience}</span>
         <span className="flex items-center gap-1"><BookOpen size={11} />{level}</span>
+        <span className="rounded-full border border-gray-200 bg-gray-50 px-2 py-1 text-[10px] font-semibold text-gray-700">
+          {modeLabel}
+        </span>
       </div>
       {locationMapUrl && (
         <div className="mt-2 text-xs text-blue-600">
@@ -133,7 +147,54 @@ function TutorCardUI({ tutor, onView, onBook }: { tutor: any; onView: () => void
 
 export default function CariTutorPage(props: any) {
   const { t } = useTranslation();
-  const { tutors, searchQuery, setSearchQuery, filterSubject, setFilterSubject, onSelectTutor, onBookTutor, navigate } = props;
+  const { tutors, searchQuery, setSearchQuery, filterSubject, setFilterSubject, onSelectTutor, onBookTutor, navigate, user } = props;
+
+  const normalizeLevelValue = (level?: string | null) => {
+    if (!level) {
+      return "";
+    }
+
+    const normalized = level.trim().toLowerCase();
+
+    if (normalized.includes("sd")) return "SD";
+    if (normalized.includes("smp") || normalized.includes("mts")) return "SMP/MTS";
+    if (normalized.includes("sma") || normalized.includes("smk")) return "SMA/SMK";
+    if (normalized.includes("universitas") || normalized.includes("politeknik") || normalized.includes("mahasiswa")) {
+      return "Universitas/Politeknik";
+    }
+
+    return level.trim();
+  };
+
+  const mapEducationLevelToTutorLevel = (educationLevel?: string | null) => {
+    const normalized = normalizeLevelValue(educationLevel);
+    switch (normalized) {
+      case "SD":
+        return "SD";
+      case "SMP/MTS":
+        return "SMP/MTS";
+      case "SMA/SMK":
+        return "SMA/SMK";
+      case "Universitas/Politeknik":
+        return "Universitas/Politeknik";
+      default:
+        return "Semua";
+    }
+  };
+
+  const [selectedLevel, setSelectedLevel] = useState<string>(mapEducationLevelToTutorLevel(user?.education_level));
+
+  useEffect(() => {
+    setSelectedLevel(mapEducationLevelToTutorLevel(user?.education_level));
+  }, [user?.education_level]);
+
+  const levelOptions = [
+    { value: "Semua", label: t("findTutor.all") },
+    { value: "SD", label: "SD" },
+    { value: "SMP/MTS", label: "SMP/MTS" },
+    { value: "SMA/SMK", label: "SMA/SMK" },
+    { value: "Universitas/Politeknik", label: "Universitas/Politeknik" },
+  ];
 
   const subjects = ["Semua", "Matematika", "Fisika", "Bahasa Inggris", "Kimia", "Biologi", "Bahasa Indonesia"];
   const subjectLabels: Record<string, string> = {
@@ -203,6 +264,21 @@ export default function CariTutorPage(props: any) {
     };
   });
 
+  type TutorWithLevels = Tutor & {
+    levels?: string[];
+    level_label?: string | null;
+    level?: string | null;
+  };
+
+  const normalizeTutorLevels = (tutor: TutorWithLevels) => {
+    const rawLevels = [
+      ...(tutor.levels ?? []),
+      ...(tutor.level_label ? tutor.level_label.split(/[\/\\]/).map((level) => level.trim()) : []),
+      ...(tutor.level ? [tutor.level] : []),
+    ];
+    return Array.from(new Set(rawLevels.filter(Boolean).map(normalizeLevelValue)));
+  };
+
   const filtered = tutorsWithLocation
     .filter((t: any) => {
       const subject =
@@ -218,7 +294,9 @@ export default function CariTutorPage(props: any) {
         modeFilter === "all" ||
         (modeFilter === "online" && (t.online ?? t.mode_online)) ||
         (modeFilter === "offline" && (t.mode_offline ?? false));
-      return matchQ && matchS && matchP && matchR && matchMode;
+      const levelValues = normalizeTutorLevels(t).map(normalizeLevelValue);
+      const matchLevel = selectedLevel === "Semua" || levelValues.includes(normalizeLevelValue(selectedLevel));
+      return matchQ && matchS && matchP && matchR && matchMode && matchLevel;
     })
     .sort((a: any, b: any) => {
       if (sortBy === "rating") return (b.rating ?? 0) - (a.rating ?? 0);
@@ -320,6 +398,18 @@ export default function CariTutorPage(props: any) {
                 className="w-full accent-blue-600"
               />
               <div className="text-sm font-semibold text-gray-800 mt-1">Rp {priceRange.toLocaleString("id-ID")}</div>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 block">Jenjang</label>
+              <select
+                value={selectedLevel}
+                onChange={(e) => setSelectedLevel(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {levelOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 block">{t("findTutor.mode")}</label>

@@ -153,16 +153,16 @@ export default function BookingSayaPage(props: any) {
 
   const canJoinSession = (b: any) => {
     const status = getStatus(b);
-    return status === "confirmed" && b.live_session?.status === "ongoing";
+    return b.mode === "online" && status === "confirmed" && b.live_session?.status === "ongoing";
   };
 
   const canWaitForTutor = (b: any) => {
     const status = getStatus(b);
-    return status === "confirmed" && b.live_session?.status !== "ongoing";
+    return b.mode === "online" && status === "confirmed" && b.live_session?.status !== "ongoing";
   };
 
   const openLiveClass = (bookingId: number | string) => {
-    window.location.hash = `#/live-class?booking_id=${bookingId}`;
+    window.location.hash = `#/pretest?booking_id=${bookingId}`;
   };
 
   const formatDate = (date: string) => {
@@ -428,15 +428,7 @@ export default function BookingSayaPage(props: any) {
                         >
                           {t("booking.waiting")}
                         </button>
-                      ) : getStatus(b) === "completed" ? (
-                        <button
-                          onClick={() => openLiveClass(b.id)}
-                          className="px-2 xs:px-4 py-1.5 text-xs font-medium text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors"
-                        >
-                          {t("booking.view")}
-                        </button>
-                      ) : null}
-                      {b.mode === "offline" && mapUrl && (
+                      ) : b.mode === "offline" && mapUrl ? (
                         <a
                           href={mapUrl}
                           target="_blank"
@@ -446,7 +438,14 @@ export default function BookingSayaPage(props: any) {
                           <MapPin size={12} className="xs:w-3 xs:h-3" />
                           <span className="hidden xs:inline">{t("booking.goMap")}</span>
                         </a>
-                      )}
+                      ) : b.mode === "online" && getStatus(b) === "completed" ? (
+                        <button
+                          onClick={() => openLiveClass(b.id)}
+                          className="px-2 xs:px-4 py-1.5 text-xs font-medium text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors"
+                        >
+                          {t("booking.view")}
+                        </button>
+                      ) : null}
                       {canCancel(b) && (
                         <button
                           onClick={() => cancelBooking(b.id)}

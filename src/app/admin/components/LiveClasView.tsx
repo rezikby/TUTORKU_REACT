@@ -105,9 +105,9 @@ type LiveClasViewProps = {
 
 type Booking = {
   id: number;
-  subject?: { name?: string | null };
-  tutor?: { name?: string | null; photo?: string | null; avatar?: string | null };
-  student?: { name?: string | null; photo?: string | null; avatar?: string | null };
+  subject?: string | { id?: number | string; name?: string | null };
+  tutor?: { id?: number | string; name?: string | null; photo?: string | null; avatar?: string | null };
+  student?: { id?: number | string; name?: string | null; photo?: string | null; avatar?: string | null };
   date?: string;
   start_time?: string;
   duration_minutes?: number;
@@ -217,6 +217,14 @@ export default function LiveClasView({ navigate, bookingId, user }: LiveClasView
   const [booking, setBooking] = useState<Booking | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const getSubjectLabel = (subject: Booking["subject"]) => {
+    if (typeof subject === "string") {
+      return subject;
+    }
+
+    return subject?.name || "-";
+  };
   const [error, setError] = useState<string | null>(null);
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
@@ -583,6 +591,7 @@ export default function LiveClasView({ navigate, bookingId, user }: LiveClasView
 
   const participantsRef = useRef<ParticipantPresence[]>([]);
   const presenceManagerRef = useRef<PresenceChannelManager | null>(null);
+  const pollingPresenceRef = useRef<PresenceChannelManager | null>(null);
   const [connectionErrors, setConnectionErrors] = useState<string[]>([]);
   const signalProcessingQueue = useRef<Map<number, Promise<void>>>(new Map());
 
@@ -627,6 +636,99 @@ export default function LiveClasView({ navigate, bookingId, user }: LiveClasView
     playMedia();
   };
 
+  useEffect(() => {
+    // Early presence (polling) so tutor can see students even before session is started
+    let active = true;
+    (async () => {
+      if (!bookingId || !user?.id) return;
+      // Do not create polling presence when a live session is already ongoing
+      if (session && session.status === 'ongoing') return;
+
+      try {
+        const pollManager = new PresenceChannelManager({
+          echo: null,
+          bookingId: Number(bookingId),
+          roomId: String(bookingId),
+          userId: user.id,
+          userName: user.name || 'Tutor',
+          usePolling: true,
+          pollIntervalMs: 2000,
+          apiBaseUrl: '/api',
+          onParticipantsReceived: (parts) => {
+            if (!active) return;
+            const filtered = parts.filter((p) => p.id !== user.id);
+            setParticipants(filtered);
+          },
+          onMemberJoined: (member) => {
+            if (!active) return;
+            if (member.id === user.id) return;
+            setParticipants((prev) => [...prev.filter((p) => p.id !== member.id), member]);
+          },
+          onMemberLeft: (memberId) => {
+            if (!active) return;
+            setParticipants((prev) => prev.filter((p) => p.id !== memberId));
+          },
+          onMemberUpdated: (member) => {
+            if (!active) return;
+            setParticipants((prev) => {
+              const next = prev.map((p) => (p.id === member.id ? member : p));
+              if (!next.some((p) => p.id === member.id)) return [...next, member];
+              return next;
+            });
+          },
+        });
+
+        pollingPresenceRef.current = pollManager;
+        await pollManager.joinRoom();
+        // Announce tutor presence via API so polling endpoint shows tutor as present
+        pollManager.updatePresence({ isAudioOn: micOn, isVideoOn: camOn }, 'UserJoinedCall');
+      } catch (err) {
+        console.warn('[LiveClasView] Polling presence failed', err);
+      }
+    })();
+
+    return () => {
+      active = false;
+      try {
+        pollingPresenceRef.current?.destroy();
+        pollingPresenceRef.current = null;
+      } catch (e) {
+        /* ignore */
+      }
+    };
+  // run when booking or user changes or session changes
+  }, [bookingId, user?.id, session?.status, micOn, camOn]);
+
+  // Fetch pretest data directly from participants endpoint
+  useEffect(() => {
+    if (!bookingId || !studentParticipant?.id) return;
+
+    const fetchPretestData = async () => {
+      try {
+        const response = await adminApiFetch(`/bookings/${bookingId}/live-session/participants`);
+        if (response.ok) {
+          const data = await response.json();
+          const student = data.participants?.find((p: ParticipantPresence) => p.id === studentParticipant.id);
+          if (student) {
+            setParticipants((prev) => [
+              ...prev.filter((p) => p.id !== student.id),
+              { ...student },
+            ]);
+          }
+        }
+      } catch (err) {
+        console.warn('[LiveClasView] Failed to fetch participant data', err);
+      }
+    };
+
+    // Fetch immediately and then every 2 seconds
+    fetchPretestData();
+    const interval = setInterval(fetchPretestData, 2000);
+
+    return () => clearInterval(interval);
+  }, [bookingId, studentParticipant?.id]);
+
+  // Missing useEffect wrapper was removed earlier — restore it so media attachment runs reactively
   useEffect(() => {
     // Only attach video stream if it has enabled video tracks
     const hasEnabledVideoTracks = remoteStudentVideoStream?.getVideoTracks().some(
@@ -1489,7 +1591,7 @@ export default function LiveClasView({ navigate, bookingId, user }: LiveClasView
         roomId: session.room_id!,
         userId: user.id,
         userName: user.name || "Tutor",
-        usePolling: true, // Enable polling for shared hosting
+        usePolling: false, // use realtime Reverb/echo so whispers (webrtc.signal) are received
         pollIntervalMs: 1500, // Poll every 1.5 seconds
         apiBaseUrl: '/api',
         onParticipantsReceived: async (participants) => {
@@ -2179,7 +2281,7 @@ export default function LiveClasView({ navigate, bookingId, user }: LiveClasView
                     <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#e8eaed]"><BookOpen size={15} className="text-[#8ab4f8]" /> Informasi Kelas</div>
                     <div className="space-y-2 text-xs text-[#e8eaed]">
                       <div><span className="text-[#9aa0a6]">Siswa</span> : {booking?.student?.name || "-"}</div>
-                      <div><span className="text-[#9aa0a6]">Mata pelajaran</span> : {booking?.subject?.name || "-"}</div>
+                      <div><span className="text-[#9aa0a6]">Mata pelajaran</span> : {getSubjectLabel(booking?.subject)}</div>
                       <div><span className="text-[#9aa0a6]">Booking</span> : #{booking?.id || bookingId || "-"}</div>
                       <div><span className="text-[#9aa0a6]">Jadwal</span> : {formatSessionSchedule(booking?.date, booking?.start_time)}</div>
                       <div><span className="text-[#9aa0a6]">Durasi</span> : {booking?.duration_minutes ? `${booking.duration_minutes} menit` : "-"}</div>
@@ -2282,6 +2384,15 @@ export default function LiveClasView({ navigate, bookingId, user }: LiveClasView
 
             <div className={`flex-1 min-h-0 relative bg-transparent p-0 ${isFocusMode ? "xl:flex-[2]" : ""}`}>
               <div className="relative w-full h-full rounded-none overflow-hidden bg-[#202124]">
+                {/* Pretest Score Display */}
+                {studentParticipant?.pretestCompleted && (
+                  <div className="absolute top-4 left-4 z-50 bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2 rounded-lg shadow-lg">
+                    <div className="text-white font-semibold text-sm">
+                      Nilai Pre-Test: <span className="text-lg font-bold">{studentParticipant.pretestScore ?? 0}/{studentParticipant.pretestTotalQuestions ?? 0}</span>
+                    </div>
+                  </div>
+                )}
+                
                 {/* Tutor Video Element */}
                 <video
                   ref={tutorVideoRef}
@@ -2430,7 +2541,7 @@ export default function LiveClasView({ navigate, bookingId, user }: LiveClasView
                   <span className="mr-1 inline-flex h-2 w-2 rounded-full bg-[#81c995]" />{studentParticipant?.name || booking?.student?.name || "Siswa"}
                 </div>
                 <div className="rounded-full border border-[#8ab4f8]/30 bg-[#8ab4f8]/15 px-3 py-1 text-[11px] font-semibold text-[#8ab4f8] backdrop-blur">
-                  {booking?.subject?.name || "Kelas Live"}
+                  {getSubjectLabel(booking?.subject) || "Kelas Live"}
                 </div>
               </div>
 
@@ -2647,7 +2758,7 @@ export default function LiveClasView({ navigate, bookingId, user }: LiveClasView
                   <span className="mr-1 inline-flex h-2 w-2 rounded-full bg-[#81c995]" />{studentParticipant?.name || booking?.student?.name || "Siswa"}
                 </div>
                 <div className="rounded-full border border-[#8ab4f8]/30 bg-[#8ab4f8]/15 px-3 py-1 text-[11px] font-semibold text-[#8ab4f8] backdrop-blur">
-                  {booking?.subject?.name || "Kelas Live"}
+                  {getSubjectLabel(booking?.subject) || "Kelas Live"}
                 </div>
               </div>
 
@@ -2706,7 +2817,7 @@ export default function LiveClasView({ navigate, bookingId, user }: LiveClasView
                     <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#e8eaed]"><BookOpen size={15} className="text-[#8ab4f8]" /> Informasi Kelas</div>
                     <div className="space-y-2 text-xs text-[#e8eaed]">
                       <div><span className="text-[#9aa0a6]">Siswa</span> : {booking?.student?.name || "-"}</div>
-                      <div><span className="text-[#9aa0a6]">Mata pelajaran</span> : {booking?.subject?.name || "-"}</div>
+                      <div><span className="text-[#9aa0a6]">Mata pelajaran</span> : {getSubjectLabel(booking?.subject)}</div>
                       <div><span className="text-[#9aa0a6]">Booking</span> : #{booking?.id || bookingId || "-"}</div>
                       <div><span className="text-[#9aa0a6]">Jadwal</span> : {formatSessionSchedule(booking?.date, booking?.start_time)}</div>
                       <div><span className="text-[#9aa0a6]">Durasi</span> : {booking?.duration_minutes ? `${booking.duration_minutes} menit` : "-"}</div>
@@ -3011,7 +3122,11 @@ export default function LiveClasView({ navigate, bookingId, user }: LiveClasView
                   </div>
                   <div className="flex-1">
                     <div className="text-sm font-medium text-[#e8eaed]">{participant.name || "Siswa"}</div>
-                    <div className="text-xs text-[#9aa0a6]">Siswa</div>
+                    <div className="text-xs text-[#9aa0a6]">
+                      {participant.pretestCompleted
+                        ? `Pretest ${participant.pretestScore ?? 0}/${participant.pretestTotalQuestions ?? 0}`
+                        : "Belum menyelesaikan pretest"}
+                    </div>
                   </div>
                   <div className="flex items-center gap-1">
                     <Mic size={14} className={participant.isAudioOn ? 'text-[#81c995]' : 'text-[#ea4335]'} />

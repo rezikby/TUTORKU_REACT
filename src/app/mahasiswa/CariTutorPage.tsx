@@ -48,7 +48,31 @@ interface CariTutorPageProps {
   setFilterSubject: (s: string) => void;
   onSelectTutor: (tutor: Tutor) => void;
   navigate: (p: Page) => void;
+  user?: { education_level?: string | null };
 }
+
+const normalizeLevelValue = (level?: string | null) => {
+  if (!level) return "";
+  const normalized = level.trim().toLowerCase();
+
+  if (normalized.includes("sd")) return "SD";
+  if (normalized.includes("smp") || normalized.includes("mts")) return "SMP/MTS";
+  if (normalized.includes("sma") || normalized.includes("smk")) return "SMA/SMK";
+  if (normalized.includes("universitas") || normalized.includes("politeknik") || normalized.includes("mahasiswa")) {
+    return "Universitas/Politeknik";
+  }
+
+  return level.trim();
+};
+
+const mapEducationLevelToTutorLevel = (educationLevel?: string | null) => {
+  const normalized = normalizeLevelValue(educationLevel);
+  if (normalized === "SD") return "SD";
+  if (normalized === "SMP/MTS") return "SMP/MTS";
+  if (normalized === "SMA/SMK") return "SMA/SMK";
+  if (normalized === "Universitas/Politeknik") return "Universitas/Politeknik";
+  return "Semua";
+};
 
 export default function CariTutorPage({
   tutors,
@@ -58,12 +82,14 @@ export default function CariTutorPage({
   setFilterSubject,
   onSelectTutor,
   navigate,
+  user,
 }: CariTutorPageProps) {
   const { t } = useTranslation();
   const [priceFilter, setPriceFilter] = useState(170000);
   const [ratingFilter, setRatingFilter] = useState<number>(0);
   const [modeFilter, setModeFilter] = useState<"online" | "offline" | "keduanya">("keduanya");
   const [sortBy, setSortBy] = useState<"rating" | "price" | "experience">("rating");
+  const [selectedLevel, setSelectedLevel] = useState<string>(mapEducationLevelToTutorLevel(user?.education_level));
 
   const filteredTutors = tutors.filter((tutor) => {
     const matchSearch = tutor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -77,8 +103,16 @@ export default function CariTutorPage({
     const matchMode = modeFilter === "keduanya" ||
       (modeFilter === "online" && tutor.mode_online) ||
       (modeFilter === "offline" && tutor.mode_offline);
+
+    const levelValues = [
+      ...(tutor.levels ?? []),
+      ...(tutor.level_label ? tutor.level_label.split(/[/\\]/).map((value) => value.trim()) : []),
+      ...(tutor.level ? [tutor.level] : []),
+    ].map(normalizeLevelValue).filter(Boolean);
+
+    const matchLevel = selectedLevel === "Semua" || levelValues.includes(normalizeLevelValue(selectedLevel));
     
-    return matchSearch && matchPrice && matchRating && matchMode;
+    return matchSearch && matchPrice && matchRating && matchMode && matchLevel;
   });
 
   const sortedTutors = [...filteredTutors].sort((a, b) => {
@@ -90,6 +124,14 @@ export default function CariTutorPage({
   const subjects = [...new Set(tutors.flatMap(t => 
     t.subjects?.map(s => s.name) || [t.subject_label || t.subject || ""]
   ))].filter(Boolean);
+
+  const levelOptions = [
+    "Semua",
+    "SD",
+    "SMP/MTS",
+    "SMA/SMK",
+    "Universitas/Politeknik",
+  ];
 
   return (
     <div className="min-h-screen" style={{ background: "#F2F6FF" }}>

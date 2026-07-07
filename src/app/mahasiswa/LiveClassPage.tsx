@@ -210,8 +210,19 @@ export function LiveClassPage({
   const [hasCountdownEnded, setHasCountdownEnded] = useState(false);
   const [showRatingPopup, setShowRatingPopup] = useState(false);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [pretestAccessAllowed, setPretestAccessAllowed] = useState<boolean>(true);
   const signalProcessingQueue = useRef<Map<number, Promise<void>>>(new Map());
   const { t } = useTranslation();
+
+  useEffect(() => {
+    if (!bookingId) return;
+    const pretestKey = `tutorku_pretest_completed_${bookingId}`;
+    const pretestCompleted = localStorage.getItem(pretestKey) === "1";
+    if (!pretestCompleted) {
+      setPretestAccessAllowed(false);
+      window.location.hash = `#/pretest?booking_id=${bookingId}`;
+    }
+  }, [bookingId]);
 
   // ── DETEKSI LANDSCAPE UNTUK MOBILE ──────────────────────────────────────────
   useEffect(() => {
@@ -642,7 +653,7 @@ export function LiveClassPage({
 
   // Setup WebRTC and Presence when session starts
   useEffect(() => {
-    if (!session || session.status !== "ongoing" || !bookingId || !user?.id) {
+    if (!session || session.status !== "ongoing" || !bookingId || !user?.id || !hasJoined) {
       return;
     }
 
@@ -788,7 +799,7 @@ export function LiveClassPage({
           roomId: session.room_id,
           userId: currentUserId,
           userName: user.name || "User",
-          usePolling: true, // Enable polling for shared hosting
+          usePolling: false, // use realtime Reverb/echo so we receive whisper events (webrtc.signal/presence updates)
           pollIntervalMs: 1500, // Poll every 1.5 seconds
           apiBaseUrl: '/api',
           onParticipantsReceived: async (participants) => {
@@ -971,7 +982,7 @@ export function LiveClassPage({
     };
 
     setupWebRTC();
-  }, [session?.status, session?.room_id, bookingId, user?.id]);
+  }, [session?.status, session?.room_id, bookingId, user?.id, hasJoined]);
 
   useEffect(() => {
     if (!("Notification" in window)) return;
@@ -1830,6 +1841,13 @@ export function LiveClassPage({
   const handleJoinSession = async () => {
     if (!bookingId) return;
 
+    const pretestKey = `tutorku_pretest_completed_${bookingId}`;
+    const pretestCompleted = localStorage.getItem(pretestKey) === "1";
+    if (!pretestCompleted) {
+      window.location.hash = `#/pretest?booking_id=${bookingId}`;
+      return;
+    }
+
     if (!canJoinSession) {
       if (!hasJoined) {
         alertInfo(t("liveClass.alert.waitTutorStart"));
@@ -2171,7 +2189,11 @@ export function LiveClassPage({
             }
             setShowRatingPopup(false);
             setReviewSubmitted(true);
-            navigate("dashboard-siswa");
+            if (bookingId) {
+              window.location.hash = `#/posttest?booking_id=${bookingId}`;
+            } else {
+              navigate("dashboard-siswa");
+            }
           }}
         />
       )}

@@ -17,12 +17,6 @@ interface RegisterOtpPageProps {
   name: string;
   navigate: (page: string) => void;
   verifyPhoneOtp: (phone: string, otp: string) => Promise<LoginResult>;
-  registerWithPhone: (phone: string, name: string) => Promise<{
-    success: boolean;
-    token?: string;
-    role?: string;
-    message?: string;
-  }>;
   sendPhoneOtp: (phone: string) => Promise<{
     success: boolean;
     message?: string;
@@ -136,49 +130,35 @@ export default function RegisterOtpPage({
   };
 
  const handleVerifyOtp = async (e: React.FormEvent) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  const otpString = otp.join("");
-  if (otpString.length < 5) {
-    setOtpError(t("auth.otpMinDigits"));
-    return;
-  }
-
-  setIsVerifying(true);
-  setOtpError(null);
-
-  try {
-    const verified = await verifyPhoneOtp(phone, otpString, name);
-
-    if (!verified.success) {
-      setOtpError(verified.message || t("auth.verifyFailed"));
+    const otpString = otp.join("");
+    if (otpString.length < 5) {
+      setOtpError(t("auth.otpMinDigits"));
       return;
     }
 
-    const token = verified.token ?? localStorage.getItem("TUTORKU_token");
-    if (!token) {
-      setOtpError("Token tidak ditemukan. Silakan login ulang.");
+    setIsVerifying(true);
+    setOtpError(null);
+
+    try {
+      const verified = await verifyPhoneOtp(phone, otpString);
+
+      if (!verified.success) {
+        setOtpError(verified.message || t("auth.verifyFailed"));
+        return;
+      }
+
       return;
+    } catch (err: any) {
+      console.error("Verification error:", err);
+      const secs = parseCooldownFromMessage(err?.message);
+      if (secs) setCountdown(secs);
+      setOtpError(err.message || t("auth.verifyFailed"));
+    } finally {
+      setIsVerifying(false);
     }
-
-    localStorage.setItem("TUTORKU_token", token);
-
-    const role = verified.role || "siswa";
-    if (role === "tutor") {
-      navigate("dashboard-tutor");
-    } else {
-      navigate("dashboard-siswa");
-    }
-  } catch (err: any) {
-    console.error("Verification error:", err);
-    const secs = parseCooldownFromMessage(err?.message);
-    if (secs) setCountdown(secs);
-    setOtpError(err.message || t("auth.verifyFailed"));
-  } finally {
-    setIsVerifying(false);
-  }
-};
-
+  };
   const handleResendOtp = async () => {
     if (countdown > 0 || isResending) return;
 

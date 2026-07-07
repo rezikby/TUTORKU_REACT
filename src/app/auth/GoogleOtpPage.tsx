@@ -103,10 +103,7 @@ export default function GoogleOtpPage({
     setOtpError(null);
     
     try {
-      const success = await verifyGoogleOtp(otpCode);
-      if (success) {
-        navigate("dashboard-siswa");
-      }
+      await verifyGoogleOtp(otpCode);
     } catch (err: any) {
       setOtpError(err.message || t("auth.verifyFailed"));
       setOtp(["", "", "", "", ""]);

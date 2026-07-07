@@ -65,6 +65,8 @@ const VideoPage = lazy(() => import("./tutor/VideoPage"));
 const LoginPage = lazy(() => import("./auth/LoginPage"));
 const RegisterPage = lazy(() => import("./auth/RegisterPage"));
 const GoogleOtpPage = lazy(() => import("./auth/GoogleOtpPage"));
+const OnboardingPage = lazy(() => import("./auth/OnboardingPage"));
+const JenjangPage = lazy(() => import("./auth/JenjangPage"));
 const AdminLoginPage = lazy(() => import("./auth/AdminLoginPage"));
 const CariTutorPage = lazy(() => import("./tutor/CariTutorPage"));
 const DetailTutorPage = lazy(() => import("./tutor/DetailTutorPage"));
@@ -81,6 +83,9 @@ const SettingsPage = lazy(() => import("./mahasiswa/SettingsPage"));
 const ReminderSettingsPage = lazy(() => import("./mahasiswa/ReminderSettingsPage"));
 const AboutPage = lazy(() => import("./mahasiswa/AboutPage"));
 const LiveClassPage = lazy(() => import("./mahasiswa/LiveClassPage"));
+const PretestPage = lazy(() => import("./mahasiswa/PretestPage"));
+const PosttestPage = lazy(() => import("./mahasiswa/PosttestPage"));
+const RiwayatSesi = lazy(() => import("./mahasiswa/RiwayatSesi"));
 const ChatPage = lazy(() => import("./mahasiswa/ChatPage"));
 const ForumPage = lazy(() => import("./mahasiswa/ForumPage"));
 const TutorRegistrationPage = lazy(() => import("./mahasiswa/TutorRegistrationPage"));
@@ -233,6 +238,9 @@ type User = {
   phone?: string | null;
   role: string;
   avatar?: string | null;
+  education_level?: string | null;
+  education_detail?: string | null;
+  onboarding_completed?: boolean;
 };
 
 type LoginResult = {
@@ -540,21 +548,24 @@ export default function App() {
     })();
   }, []);
 
-  const fetchUser = async () => {
+  const fetchUser = async (): Promise<User | null> => {
     const currentToken = token || localStorage.getItem("TUTORKU_token");
     if (!currentToken) {
       setToken(null);
       setUser(null);
-      return;
+      return null;
     }
 
     try {
       const data = await apiFetch("/auth/me");
-      setUser(data.data ?? data);
+      const fetchedUser = data.data ?? data;
+      setUser(fetchedUser);
+      return fetchedUser;
     } catch (error: any) {
       if (error.message !== "Unauthorized") {
         console.error("Gagal memuat user:", error);
       }
+      return null;
     }
   };
 
@@ -716,6 +727,23 @@ export default function App() {
     toastSuccess("Berhasil keluar.");
   };
 
+  useEffect(() => {
+    if (!user || user.role !== "siswa" || user.onboarding_completed) {
+      return;
+    }
+
+    if (
+      activePage === "onboarding" ||
+      activePage === "login" ||
+      activePage === "register" ||
+      activePage === "login-google-otp"
+    ) {
+      return;
+    }
+
+    navigate("onboarding");
+  }, [user, activePage]);
+
   const navigate = (page: string) => {
     if (page === "login") {
       setLoginMode("student");
@@ -779,16 +807,21 @@ export default function App() {
     }
   };
 
-  const navigateAfterLogin = (role?: string) => {
-    // Redirect berdasarkan role ke dashboard yang sesuai
-    const resolvedRole = role ?? user?.role;
+  const navigateAfterLogin = (authUser: User | null, role?: string) => {
+    const resolvedRole = role ?? authUser?.role;
     if (resolvedRole === "tutor") {
-      navigate("admin"); // Dashboard tutor
-    } else if (resolvedRole === "admin") {
-      navigate("platform-admin"); // Dashboard admin
-    } else {
-      navigate("dashboard-siswa"); // Default dashboard siswa
+      navigate("admin");
+      return;
     }
+    if (resolvedRole === "admin") {
+      navigate("platform-admin");
+      return;
+    }
+    if (authUser && authUser.role === "siswa" && !authUser.onboarding_completed) {
+      navigate("onboarding");
+      return;
+    }
+    navigate("dashboard-siswa");
   };
 
   const loadTutors = async () => {
@@ -916,7 +949,7 @@ export default function App() {
       setToken(newToken);
       setUser(data.user);
       toastSuccess("Registrasi berhasil! Selamat datang.");
-      navigate("dashboard-siswa");
+      navigateAfterLogin(data.user, data.user?.role);
       return { success: true, requires_verification: false, role: data.user?.role || "siswa" };
     }
 
@@ -981,7 +1014,8 @@ export default function App() {
         localStorage.setItem("TUTORKU_token", newToken);
         setUser(data.user);
         toastSuccess("Login berhasil! Selamat datang.");
-        return { success: true, role: data.role };
+        navigateAfterLogin(data.user, data.role);
+        return { success: true, role: data.role, user: data.user };
       }
 
       return { success: false, message: "Login gagal" };
@@ -1069,6 +1103,7 @@ export default function App() {
       setToken(data.token);
       localStorage.setItem("TUTORKU_token", data.token);
       setUser(data.user);
+      navigateAfterLogin(data.user, data.role);
     }
 
     return {
@@ -1288,7 +1323,7 @@ export default function App() {
             setUser(retryData.user);
             setPendingGoogleToken(null);
             toastSuccess("Login berhasil! Selamat datang.");
-            navigate("dashboard-siswa");
+            navigateAfterLogin(retryData.user, retryData.user?.role);
             setLoading((prev) => ({ ...prev, auth: false }));
             return true;
           }
@@ -1305,7 +1340,7 @@ export default function App() {
         setUser(data.user);
         setPendingGoogleToken(null);
         toastSuccess("Login berhasil! Selamat datang.");
-        navigate("dashboard-siswa");
+        navigateAfterLogin(data.user, data.user?.role);
         setLoading((prev) => ({ ...prev, auth: false }));
         return true;
       }
@@ -1534,7 +1569,7 @@ export default function App() {
       const pathname = window.location.pathname || "";
       const search = window.location.search || "";
 
-      const handleGoogleCallback = (queryString: string) => {
+      const handleGoogleCallback = async (queryString: string) => {
           const params = new URLSearchParams(queryString);
           const googleToken = params.get("token");
           const userRole = params.get("role");
@@ -1556,15 +1591,18 @@ export default function App() {
         if (googleToken) {
           setToken(googleToken);
           localStorage.setItem("TUTORKU_token", googleToken);
-          fetchUser();
+          const fetchedUser = await fetchUser();
           toastSuccess("Login berhasil! Selamat datang.");
 
           if (userRole === "tutor") {
             navigate("admin");
           } else if (userRole === "admin") {
             navigate("platform-admin");
+          } else if (fetchedUser) {
+            navigateAfterLogin(fetchedUser, userRole || undefined);
           } else {
-            navigate("dashboard-siswa");
+            setLoginError("Gagal memuat profil. Silakan coba lagi.");
+            navigate("login");
           }
           return true;
         }
@@ -1671,8 +1709,18 @@ export default function App() {
       const [pagePart, queryString] = pageWithQuery.split("?");
       const page = pagePart as Page;
       const params = new URLSearchParams(queryString ?? "");
-      setLiveClassBookingId(params.get("booking_id"));
+      const bookingId = params.get("booking_id");
+      setLiveClassBookingId(bookingId);
       const restoredTutorId = params.get("tutorId") ?? params.get("id");
+
+      if (page === "live-class" && bookingId) {
+        const pretestKey = `tutorku_pretest_completed_${bookingId}`;
+        const pretestCompleted = localStorage.getItem(pretestKey) === "1";
+        if (!pretestCompleted) {
+          window.location.hash = `#/pretest?booking_id=${bookingId}`;
+          return;
+        }
+      }
 
       if (
         page &&
@@ -1782,29 +1830,12 @@ export default function App() {
     activePage !== "platform-admin" &&
     activePage !== "admin-login" &&
     activePage !== "login-google-otp" &&
+    activePage !== "onboarding" &&
     activePage !== "live-class-tutor" &&
     activePage !== "live-class";
 
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
-      {/* ============ REMINDER NOTIFICATION POPUP ============ */}
-      <ReminderNotificationPopup
-        reminder={reminderNotification}
-        onClose={() => setReminderNotification(null)}
-        onAction={(url) => {
-          if (url) {
-            if (url.includes("/live-class")) {
-              const bookingId = url.split("/").pop();
-              if (bookingId) {
-                setLiveClassBookingId(bookingId);
-                navigate("live-class");
-              }
-            }
-          }
-        }}
-      />
-
-      {/* ============ NAVBAR ============ */}
       {showNav && (
         <Navbar
           activePage={activePage}
@@ -1820,6 +1851,20 @@ export default function App() {
           onLanguageChange={setLanguage}
         />
       )}
+      {/* ============ REMINDER NOTIFICATION POPUP ============ */}
+      <ReminderNotificationPopup
+        reminder={reminderNotification}
+        onClose={() => setReminderNotification(null)}
+        onAction={(url) => {
+          if (url && url.includes("/live-class")) {
+            const bookingId = url.split("/").pop();
+            if (bookingId) {
+              setLiveClassBookingId(bookingId);
+              window.location.hash = `#/pretest?booking_id=${bookingId}`;
+            }
+          }
+        }}
+      />
 
       {/* ============ CONTENT ============ */}
       <div className={showNav ? "pt-16" : "pt-0"}>
@@ -1873,6 +1918,15 @@ export default function App() {
             />
           )}
 
+          {activePage === "onboarding" && (
+            <JenjangPage
+              apiFetch={apiFetch}
+              user={user}
+              navigate={navigate}
+              onUpdateUser={setUser}
+            />
+          )}
+
         {activePage === "admin-login" && (
           <AdminLoginPage
             navigate={navigate}
@@ -1915,6 +1969,7 @@ export default function App() {
               navigate("booking");
             }}
             navigate={navigate}
+            user={user}
           />
         )}
 
@@ -1958,6 +2013,32 @@ export default function App() {
             apiFetch={apiFetch}
             navigate={navigate}
             setUnreadCount={setUnreadCount}
+          />
+        )}
+
+        {activePage === "pretest" && (
+          <PretestPage
+            navigate={navigate}
+            apiFetch={apiFetch}
+            user={user}
+            bookingId={liveClassBookingId}
+          />
+        )}
+
+        {activePage === "posttest" && (
+          <PosttestPage
+            navigate={navigate}
+            apiFetch={apiFetch}
+            user={user}
+            bookingId={liveClassBookingId}
+          />
+        )}
+
+        {activePage === "riwayat-sesi" && (
+          <RiwayatSesi
+            navigate={navigate}
+            apiFetch={apiFetch}
+            user={user}
           />
         )}
 

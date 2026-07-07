@@ -15,6 +15,8 @@ interface BookingSchedule {
   start_time: string;
   duration_minutes: number;
   mode: "online" | "offline";
+  location_latitude?: number | null;
+  location_longitude?: number | null;
   status: string;
   student: { name: string; email?: string; phone?: string } | null;
   subject: { name?: string | null } | null;
@@ -525,13 +527,27 @@ export default function JadwalView() {
                     <div className="flex gap-2 flex-wrap mt-3 pt-3 border-t border-gray-200">
                       {schedule.status === "confirmed" ? (
                         <>
-                          <button
-                            disabled={startingId === schedule.id}
-                            onClick={() => handleStartSession(schedule.id)}
-                            className="px-4 py-1.5 bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 rounded disabled:opacity-50"
-                          >
-                            {startingId === schedule.id ? "Memulai..." : "Mulai Kelas"}
-                          </button>
+                          {schedule.mode === "offline" ? (
+                            <a
+                              href={schedule.location_latitude != null && schedule.location_longitude != null ?
+                                `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${schedule.location_latitude},${schedule.location_longitude}`)}`
+                                : "#/"}
+                              target={schedule.location_latitude != null && schedule.location_longitude != null ? "_blank" : undefined}
+                              rel={schedule.location_latitude != null && schedule.location_longitude != null ? "noreferrer" : undefined}
+                              className="px-4 py-1.5 bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 rounded"
+                            >
+                              <MapPin size={14} className="inline-block" />
+                              Lokasi
+                            </a>
+                          ) : (
+                            <button
+                              disabled={startingId === schedule.id}
+                              onClick={() => handleStartSession(schedule.id)}
+                              className="px-4 py-1.5 bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 rounded disabled:opacity-50"
+                            >
+                              {startingId === schedule.id ? "Memulai..." : "Mulai Kelas"}
+                            </button>
+                          )}
                           <button
                             disabled={cancellingId === schedule.id}
                             onClick={() => handleCancelSchedule(schedule.id)}

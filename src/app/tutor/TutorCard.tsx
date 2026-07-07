@@ -8,6 +8,7 @@ export interface Tutor {
   photo?: string | null;
   online?: boolean;
   mode_online?: boolean;
+  mode_offline?: boolean;
   verified?: boolean;
   badge?: string | null;
   subject?: string | null;
@@ -20,6 +21,7 @@ export interface Tutor {
   experience_years?: number;
   level_label?: string | null;
   level?: string | null;
+  levels?: string[];
   price?: number;
   price_per_hour?: number;
 }
@@ -48,6 +50,14 @@ export default function TutorCard({
   const level = tutor.level_label ?? tutor.level ?? t("findTutor.allLevels");
   const price = formatPrice(tutor.price ?? tutor.price_per_hour ?? 0);
   const online = tutor.online ?? tutor.mode_online ?? false;
+  const offline = tutor.mode_offline ?? false;
+  const modeLabel = online && offline
+    ? t("findTutor.modeOnlineOffline")
+    : online
+    ? t("findTutor.online")
+    : offline
+    ? t("findTutor.offline")
+    : t("findTutor.modeUnknown");
   const badge = tutor.badge ?? (tutor.verified ? t("findTutor.topTutor") : null);
 
   return (
@@ -135,6 +145,10 @@ export default function TutorCard({
         <div className="flex items-center gap-1">
           <BookOpen size={12} />
           <span>{level}</span>
+        </div>
+
+        <div className="flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2 py-1 text-[10px] font-semibold text-gray-700">
+          {modeLabel}
         </div>
       </div>
 

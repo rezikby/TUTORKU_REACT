@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Camera, User, Mail, Shield, Check, X, Loader2 } from "lucide-react";
+import { Camera, User, Mail, Shield, Check, X, Loader2, GraduationCap, BookOpen } from "lucide-react";
 import { toastError, toastSuccess } from "../../lib/swal";
 
 export default function ProfileSection({ 
@@ -190,6 +190,24 @@ export default function ProfileSection({
             <label className="text-xs font-medium text-gray-500">Role</label>
           </div>
           <p className="text-sm text-gray-900 capitalize mt-0.5">{profileUser?.role ?? "Siswa"}</p>
+        </div>
+
+        {/* Education Level */}
+        <div className="border-t border-gray-100 pt-4">
+          <div className="flex items-center gap-2">
+            <GraduationCap size={14} className="text-gray-400" />
+            <label className="text-xs font-medium text-gray-500">Jenjang</label>
+          </div>
+          <p className="text-sm text-gray-900 mt-0.5">{profileUser?.education_level ?? "-"}</p>
+        </div>
+
+        {/* Education Detail */}
+        <div className="border-t border-gray-100 pt-4">
+          <div className="flex items-center gap-2">
+            <BookOpen size={14} className="text-gray-400" />
+            <label className="text-xs font-medium text-gray-500">Kelas / Semester</label>
+          </div>
+          <p className="text-sm text-gray-900 mt-0.5">{profileUser?.education_detail ?? "-"}</p>
         </div>
 
         {/* Email (detail) */}

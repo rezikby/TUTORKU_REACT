@@ -23,6 +23,21 @@ type ProfileData = {
 
 const LEVEL_OPTIONS = ["SD", "SMP", "SMA", "Mahasiswa"];
 
+const normalizeTutorLevel = (level: string) => {
+  const normalized = level.trim();
+  const lower = normalized.toLowerCase();
+
+  if (lower === "sd") return "SD";
+  if (lower.includes("smp") || lower.includes("mts")) return "SMP";
+  if (lower.includes("sma") || lower.includes("smk")) return "SMA";
+  if (lower.includes("mahasiswa") || lower.includes("universitas") || lower.includes("politeknik")) return "Mahasiswa";
+
+  return "";
+};
+
+const normalizeTutorLevels = (levels?: string[] | null) =>
+  (levels ?? []).map(normalizeTutorLevel).filter((value, index, array) => value && array.indexOf(value) === index);
+
 export default function PengaturanView() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [name, setName] = useState("");
@@ -46,7 +61,7 @@ export default function PengaturanView() {
         setHeadline(user.tutor_profile?.headline ?? "");
         setBio(user.tutor_profile?.bio ?? "");
         setGoogleMapsUrl(user.tutor_profile?.google_maps_url ?? "");
-        setLevels(user.tutor_profile?.levels ?? []);
+        setLevels(normalizeTutorLevels(user.tutor_profile?.levels ?? []));
         setSelectedSubjectIds((user.tutor_profile?.subjects ?? []).map((subject: Subject) => subject.id));
       })
       .catch((error) => console.error(error));
@@ -63,7 +78,8 @@ export default function PengaturanView() {
       payload.append("name", name);
       payload.append("tutor_profile[headline]", headline);
       payload.append("tutor_profile[bio]", bio);
-      levels.forEach((level) => payload.append("tutor_profile[levels][]", level));
+      const normalizedLevels = normalizeTutorLevels(levels);
+      normalizedLevels.forEach((level) => payload.append("tutor_profile[levels][]", level));
       selectedSubjectIds.forEach((subjectId) => {
         payload.append("tutor_profile[subject_ids][]", String(subjectId));
       });
@@ -87,7 +103,7 @@ export default function PengaturanView() {
       setName(user.name ?? "");
       setHeadline(user.tutor_profile?.headline ?? "");
       setBio(user.tutor_profile?.bio ?? "");
-      setLevels(user.tutor_profile?.levels ?? []);
+      setLevels(normalizeTutorLevels(user.tutor_profile?.levels ?? []));
       setSelectedSubjectIds((user.tutor_profile?.subjects ?? []).map((subject: Subject) => subject.id));
       setAvatarFile(null);
       setAvatarPreview(null);

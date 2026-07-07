@@ -22,6 +22,9 @@ export interface ParticipantPresence {
   isVideoOn: boolean;
   isScreenSharing: boolean;
   isSpeaking: boolean;
+  pretestCompleted?: boolean;
+  pretestScore?: number | null;
+  pretestTotalQuestions?: number | null;
 }
 
 export type PresenceEventName =
@@ -159,6 +162,10 @@ export class PresenceChannelManager {
           this.log('Tutor command whisper received', { data, command: data.command, payload: data.payload, userId: data.user_id });
           this.config.onCommandReceived?.(data.command, data.payload);
         });
+        this.channel.listenForWhisper('participant-updated', (data: any) => {
+          this.log('Participant updated whisper received', { userId: data.user_id, data });
+          this.handleParticipantUpdated(data);
+        });
       } else {
         this.channel.listen('.presence-update', (data: any) => {
           this.log('Presence updated (fallback)', { userId: data.user_id, data });
@@ -169,6 +176,10 @@ export class PresenceChannelManager {
           this.log('Tutor command received (fallback)', { data });
           this.config.onCommandReceived?.(data.command, data.payload);
         });
+        this.channel.listen('.participant.updated', (data: any) => {
+          this.log('Participant updated (fallback)', { userId: data.user_id, data });
+          this.handleParticipantUpdated(data);
+        });
       }
 
       return initialParticipantsPromise;
@@ -176,6 +187,22 @@ export class PresenceChannelManager {
       this.error('Failed to join presence channel via Reverb', error);
       throw error;
     }
+  }
+
+  private getAuthHeaders(): HeadersInit {
+    const headers: HeadersInit = {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    };
+
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('TUTORKU_token');
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+    }
+
+    return headers;
   }
 
   /**
@@ -187,14 +214,14 @@ export class PresenceChannelManager {
         `${this.apiBaseUrl}/bookings/${this.config.bookingId}/live-session/participants`,
         {
           method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
+          headers: this.getAuthHeaders(),
+          credentials: 'include',
         }
       );
 
       if (!response.ok) {
+        const text = await response.text();
+        this.error('Failed to fetch participants', new Error(`status=${response.status} body=${text}`));
         throw new Error(`Failed to fetch participants: ${response.status}`);
       }
 
@@ -325,10 +352,8 @@ export class PresenceChannelManager {
         `${this.apiBaseUrl}/bookings/${this.config.bookingId}/live-session/participants`,
         {
           method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
+          headers: this.getAuthHeaders(),
+          credentials: 'include',
           body: JSON.stringify({
             is_audio_on: state.isAudioOn,
             is_video_on: state.isVideoOn,
@@ -339,6 +364,8 @@ export class PresenceChannelManager {
       );
 
       if (!response.ok) {
+        const text = await response.text();
+        this.error('Failed to update presence', new Error(`status=${response.status} body=${text}`));
         throw new Error(`Failed to update presence: ${response.status}`);
       }
 
@@ -512,6 +539,9 @@ export class PresenceChannelManager {
         isVideoOn: member.isVideoOn ?? true,
         isScreenSharing: member.isScreenSharing ?? false,
         isSpeaking: member.isSpeaking ?? false,
+        pretestCompleted: member.pretestCompleted ?? member.pretest_completed ?? false,
+        pretestScore: member.pretestScore ?? member.pretest_score ?? null,
+        pretestTotalQuestions: member.pretestTotalQuestions ?? member.pretest_total_questions ?? null,
       };
       this.participants.set(participantId, participant);
     });
@@ -531,6 +561,9 @@ export class PresenceChannelManager {
       isVideoOn: member.isVideoOn ?? true,
       isScreenSharing: member.isScreenSharing ?? false,
       isSpeaking: member.isSpeaking ?? false,
+      pretestCompleted: member.pretestCompleted ?? member.pretest_completed ?? false,
+      pretestScore: member.pretestScore ?? member.pretest_score ?? null,
+      pretestTotalQuestions: member.pretestTotalQuestions ?? member.pretest_total_questions ?? null,
     };
     this.participants.set(participantId, participant);
     this.config.onMemberJoined?.(participant);
@@ -569,6 +602,9 @@ export class PresenceChannelManager {
       isVideoOn: data.isVideoOn ?? true,
       isScreenSharing: data.isScreenSharing ?? false,
       isSpeaking: data.isSpeaking ?? false,
+      pretestCompleted: data.pretestCompleted ?? data.pretest_completed ?? false,
+      pretestScore: data.pretestScore ?? data.pretest_score ?? null,
+      pretestTotalQuestions: data.pretestTotalQuestions ?? data.pretest_total_questions ?? null,
     };
 
     this.participants.set(participantId, newParticipant);
@@ -576,6 +612,46 @@ export class PresenceChannelManager {
     if (event) {
       this.config.onPresenceEvent?.(newParticipant, event, data);
     }
+  }
+
+  private handleParticipantUpdated(eventData: any): void {
+    const participantId = Number(eventData.user_id);
+    if (!participantId) {
+      return;
+    }
+
+    const participantData = eventData.data;
+    if (!participantData) {
+      return;
+    }
+
+    const participant = this.participants.get(participantId);
+    if (participant) {
+      // Merge updated data
+      Object.assign(participant, participantData);
+      this.config.onMemberUpdated?.(participant);
+      this.log('Participant updated via broadcast', { participantId, participant });
+      return;
+    }
+
+    // If participant not in local list, create new one
+    const newParticipant: ParticipantPresence = {
+      id: participantData.id,
+      name: participantData.name ?? `User ${participantId}`,
+      avatar: participantData.avatar,
+      role: participantData.role ?? 'user',
+      isAudioOn: participantData.isAudioOn ?? true,
+      isVideoOn: participantData.isVideoOn ?? true,
+      isScreenSharing: participantData.isScreenSharing ?? false,
+      isSpeaking: participantData.isSpeaking ?? false,
+      pretestCompleted: participantData.pretestCompleted ?? false,
+      pretestScore: participantData.pretestScore ?? null,
+      pretestTotalQuestions: participantData.pretestTotalQuestions ?? null,
+    };
+
+    this.participants.set(participantId, newParticipant);
+    this.config.onMemberUpdated?.(newParticipant);
+    this.log('New participant added via broadcast', { participantId, participant: newParticipant });
   }
 
   private log(message: string, data?: any): void {

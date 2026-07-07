@@ -2,6 +2,7 @@ export type Page =
   | "landing"
   | "cari-tutor"
   | "detail-tutor"
+  | "onboarding"
   | "booking"
   | "live-class"
   | "chat"
@@ -24,6 +25,9 @@ export type Page =
   | "notifikasi"
   | "platform-admin"
   | "tutor-login"
+  | "pretest"
+  | "posttest"
+  | "riwayat-sesi"
   | "live-class-tutor"
   | "admin-login"
   | "booking-detail";

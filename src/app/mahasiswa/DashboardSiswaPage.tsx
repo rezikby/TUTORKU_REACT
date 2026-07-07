@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { 
   Calendar, Clock, Heart, Award, Bell, BookMarked, GraduationCap, 
-  ChevronRight, User, BarChart3, Target, TrendingUp
+  ChevronRight, User, BarChart3, Target, TrendingUp, MapPin, Video
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
@@ -22,7 +22,13 @@ type DashboardOverview = {
   favorite_tutor?: string | null;
   upcoming_session?: {
     booking_id?: number;
-    tutor: { id?: number; name: string; avatar?: string | null; photo?: string | null };
+    mode?: "online" | "offline" | null;
+    location_address?: string | null;
+    location_city?: string | null;
+    location_province?: string | null;
+    location_latitude?: number | null;
+    location_longitude?: number | null;
+    tutor: { id?: number; name: string; avatar?: string | null; photo?: string | null; google_maps_url?: string | null };
     subject: { name: string };
     date: string;
     start_time: string;
@@ -227,8 +233,16 @@ export function DashboardSiswaPage({
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 xs:gap-3 mb-6">
-          {stats.map((s) => (
-            <div key={s.label} className={`border ${s.cardBorder ?? 'border-gray-200'} p-2 xs:p-4 rounded ${s.cardBg ?? ''}`}>
+          {stats.map((s, idx) => (
+            <div
+              key={s.label}
+              onClick={() => {
+                if (idx === 0) {
+                  navigate("riwayat-sesi");
+                }
+              }}
+              className={`border ${s.cardBorder ?? 'border-gray-200'} p-2 xs:p-4 rounded ${s.cardBg ?? ''} ${idx === 0 ? 'cursor-pointer' : ''}`}
+            >
               <div className={`w-9 h-9 ${s.bg} flex items-center justify-center mb-2 rounded`}>
                 <span className={s.color}>{s.icon}</span>
               </div>
@@ -334,14 +348,49 @@ export function DashboardSiswaPage({
               </div>
             )}
             {upcoming?.booking_id ? (
-              <button
-                onClick={() => {
-                  window.location.hash = `#/live-class?booking_id=${upcoming.booking_id}`;
-                }}
-                className="w-full mt-3 py-2 bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors rounded"
-              >
-                {t("dashboard.joinSession")}
-              </button>
+              (() => {
+                const coords = upcoming.location_latitude && upcoming.location_longitude
+                  ? { lat: upcoming.location_latitude, lng: upcoming.location_longitude }
+                  : null;
+                const gmUrl = upcoming.tutor?.google_maps_url ?? null;
+                const mapUrl = coords
+                  ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${coords.lat},${coords.lng}`)}`
+                  : gmUrl
+                    ? (() => {
+                        const atMatch = gmUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+                        if (atMatch) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${atMatch[1]},${atMatch[2]}`)}`;
+                        const dMatch = gmUrl.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+                        if (dMatch) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${dMatch[1]},${dMatch[2]}`)}`;
+                        return null;
+                      })()
+                    : null;
+
+                if (upcoming.mode === "offline") {
+                  return (
+                    <a
+                      href={mapUrl ?? "#/booking-saya"}
+                      target={mapUrl ? "_blank" : undefined}
+                      rel={mapUrl ? "noreferrer" : undefined}
+                      className="w-full mt-3 py-2 bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors rounded inline-flex items-center justify-center gap-2"
+                    >
+                      <MapPin size={14} />
+                      <span>{t("booking.goMap")}</span>
+                    </a>
+                  );
+                }
+
+                return (
+                  <button
+                    onClick={() => {
+                      window.location.hash = `#/pretest?booking_id=${upcoming.booking_id}`;
+                    }}
+                    className="w-full mt-3 py-2 bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors rounded inline-flex items-center justify-center gap-2"
+                  >
+                    <Video size={14} />
+                    <span>{t("dashboard.joinSession")}</span>
+                  </button>
+                );
+              })()
             ) : (
               <button
                 onClick={() => navigate(upcoming ? "booking-saya" : "cari-tutor")}

@@ -107,6 +107,7 @@ type User = {
   phone?: string | null;
   role: string;
   avatar?: string | null;
+  education_level?: string | null;
 };
 
 type Testimonial = {
@@ -357,6 +358,40 @@ export default function LandingPage({
     ? fmt(platformStats.total_students)
     : "—";
 
+  const normalizeLevelValue = (level?: string | null) => {
+    if (!level) return "";
+    const normalized = level.trim().toLowerCase();
+
+    if (normalized.includes("sd")) return "SD";
+    if (normalized.includes("smp") || normalized.includes("mts")) return "SMP/MTS";
+    if (normalized.includes("sma") || normalized.includes("smk")) return "SMA/SMK";
+    if (normalized.includes("universitas") || normalized.includes("politeknik") || normalized.includes("mahasiswa")) {
+      return "Universitas/Politeknik";
+    }
+
+    return level.trim();
+  };
+
+  const normalizeTutorLevels = (tutor: Tutor) => {
+    const rawLevels = [
+      ...(tutor.levels ?? []),
+      ...(tutor.level_label ? tutor.level_label.split("/").map((value) => value.trim()) : []),
+      ...(tutor.level ? [tutor.level] : []),
+    ];
+    return Array.from(new Set(rawLevels.filter(Boolean).map(normalizeLevelValue).filter(Boolean)));
+  };
+
+  const mapEducationLevelToTutorLevel = (educationLevel?: string | null) => {
+    const normalized = normalizeLevelValue(educationLevel);
+    if (normalized === "SD") return "SD";
+    if (normalized === "SMP/MTS") return "SMP/MTS";
+    if (normalized === "SMA/SMK") return "SMA/SMK";
+    if (normalized === "Universitas/Politeknik") return "Universitas/Politeknik";
+    return "Semua";
+  };
+
+  const studentLevel = mapEducationLevelToTutorLevel(user?.education_level);
+
   const stats = [
     { val: tutorVal, label: t("landing.stats.tutors") },
     { val: siswaVal, label: t("landing.stats.students") },
@@ -365,8 +400,18 @@ export default function LandingPage({
   ];
 
   const topRatedTutors = [...tutors]
-    .sort((a: TutorCardType, b: TutorCardType) => (b.rating ?? 0) - (a.rating ?? 0))
-    .slice(0, 3);
+    .filter((tutor: TutorCardType) => {
+      const levels = normalizeTutorLevels(tutor);
+      return studentLevel === "Semua" || levels.includes(studentLevel);
+    })
+    .sort((a: TutorCardType, b: TutorCardType) => (b.rating ?? 0) - (a.rating ?? 0));
+
+  const landingTopTutors =
+    topRatedTutors.length > 0
+      ? topRatedTutors.slice(0, 3)
+      : [...tutors]
+          .sort((a: TutorCardType, b: TutorCardType) => (b.rating ?? 0) - (a.rating ?? 0))
+          .slice(0, 3);
 
   return (
     <div 
@@ -630,7 +675,7 @@ export default function LandingPage({
         gap-8
       "
           >
-            {topRatedTutors.map((tutor) => (
+            {landingTopTutors.map((tutor) => (
               <TutorCard
                 key={tutor.id}
                 tutor={tutor}

@@ -28,24 +28,24 @@ export default defineConfig({
   },
 
   server: {
-    host: "rezi.nlabs.id",
+    host: true,
     port: 5173,
     strictPort: true,
-    https: true,
+    https: false,
     allowedHosts: "all",
     proxy: {
       "/api": {
-        target: "https://rezi-laravel.nlabs.id",
+        target: process.env.VITE_API_URL ?? 'https://rezi-laravel.nlabs.id/api',
         changeOrigin: true,
         secure: true,
       },
       "/sanctum": {
-        target: "https://rezi-laravel.nlabs.id",
+        target: process.env.VITE_API_URL ?? 'https://rezi-laravel.nlabs.id/api',
         changeOrigin: true,
         secure: true,
       },
       "/broadcasting": {
-        target: "https://rezi-laravel.nlabs.id",
+        target: process.env.VITE_API_URL ?? 'https://rezi-laravel.nlabs.id/api',
         changeOrigin: true,
         secure: true,
       },
