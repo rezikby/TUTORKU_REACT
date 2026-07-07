@@ -6,6 +6,11 @@
  * - Joining/leaving presence channels
  * - Tracking participant list
  * - Presence state changes (online, camera, mic, etc.)
+ * 
+ * POLLING MODE:
+ * - For shared hosting environments without real-time WebSocket support
+ * - Polls participants list every 1-2 seconds
+ * - Reduces server load while maintaining acceptable UX
  */
 
 export interface ParticipantPresence {
@@ -30,10 +35,14 @@ export type PresenceEventName =
   | "UserLeftCall";
 
 export interface PresenceChannelConfig {
-  echo: any; // Laravel Echo instance
+  echo: any; // Laravel Echo instance (optional, untuk Reverb mode)
+  bookingId: number; // For polling API calls
   roomId: string;
   userId: number;
   userName: string;
+  usePolling?: boolean; // Enable polling instead of Reverb
+  pollIntervalMs?: number; // Polling interval in milliseconds (default 1500)
+  apiBaseUrl?: string; // API base URL for polling
   onMemberJoined?: (member: ParticipantPresence) => void;
   onMemberLeft?: (memberId: number) => void;
   onMemberUpdated?: (member: ParticipantPresence) => void;
@@ -53,9 +62,17 @@ export class PresenceChannelManager {
   private channel: any = null;
   private participants: Map<number, ParticipantPresence> = new Map();
   private logger: boolean = true;
+  private pollingIntervalId: NodeJS.Timeout | null = null;
+  private lastParticipantIds: Set<number> = new Set();
+  private usePolling: boolean = false;
+  private pollIntervalMs: number = 1500;
+  private apiBaseUrl: string = '';
 
   constructor(config: PresenceChannelConfig) {
     this.config = config;
+    this.usePolling = config.usePolling ?? false;
+    this.pollIntervalMs = config.pollIntervalMs ?? 1500;
+    this.apiBaseUrl = config.apiBaseUrl ?? '/api';
   }
 
   /**
@@ -63,8 +80,45 @@ export class PresenceChannelManager {
    */
   async joinRoom(): Promise<ParticipantPresence[]> {
     try {
+      this.log('Joining presence channel', { usePolling: this.usePolling });
+
+      if (this.usePolling) {
+        return this.joinRoomWithPolling();
+      } else {
+        return this.joinRoomWithReverb();
+      }
+    } catch (error) {
+      this.error('Failed to join presence channel', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Join room using polling (for shared hosting)
+   */
+  private async joinRoomWithPolling(): Promise<ParticipantPresence[]> {
+    try {
+      // Initial fetch of participants
+      const initialParticipants = await this.fetchParticipants();
+      this.handleHere(initialParticipants);
+
+      // Start polling
+      this.startPolling();
+
+      return initialParticipants;
+    } catch (error) {
+      this.error('Failed to join room with polling', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Join room using Reverb (traditional WebSocket)
+   */
+  private async joinRoomWithReverb(): Promise<ParticipantPresence[]> {
+    try {
       const channelName = `live-session.${this.config.roomId}`;
-      this.log('Joining presence channel', { channelName });
+      this.log('Joining presence channel via Reverb', { channelName });
 
       this.channel = this.config.echo.join(channelName);
 
@@ -119,9 +173,96 @@ export class PresenceChannelManager {
 
       return initialParticipantsPromise;
     } catch (error) {
-      this.error('Failed to join presence channel', error);
+      this.error('Failed to join presence channel via Reverb', error);
       throw error;
     }
+  }
+
+  /**
+   * Fetch participants from polling API
+   */
+  private async fetchParticipants(): Promise<ParticipantPresence[]> {
+    try {
+      const response = await fetch(
+        `${this.apiBaseUrl}/bookings/${this.config.bookingId}/live-session/participants`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch participants: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.participants || [];
+    } catch (error) {
+      this.error('Failed to fetch participants', error);
+      return [];
+    }
+  }
+
+  /**
+   * Start polling for participant updates
+   */
+  private startPolling(): void {
+    this.log('Starting polling', { intervalMs: this.pollIntervalMs });
+    
+    this.pollingIntervalId = setInterval(async () => {
+      try {
+        const participants = await this.fetchParticipants();
+        this.detectParticipantChanges(participants);
+      } catch (error) {
+        this.error('Polling error', error);
+      }
+    }, this.pollIntervalMs);
+  }
+
+  /**
+   * Detect changes in participant list and fire appropriate callbacks
+   */
+  private detectParticipantChanges(newParticipants: ParticipantPresence[]): void {
+    const newParticipantIds = new Set(newParticipants.map(p => p.id));
+    const oldParticipantIds = new Set(this.participants.keys());
+
+    // Find joined participants
+    for (const id of newParticipantIds) {
+      if (!oldParticipantIds.has(id)) {
+        const participant = newParticipants.find(p => p.id === id)!;
+        this.handleMemberJoined(participant);
+      }
+    }
+
+    // Find left participants
+    for (const id of oldParticipantIds) {
+      if (!newParticipantIds.has(id)) {
+        this.handleMemberLeft(id);
+      }
+    }
+
+    // Update existing participants
+    for (const participant of newParticipants) {
+      const existing = this.participants.get(participant.id);
+      if (existing) {
+        // Check for state changes
+        const changed = 
+          existing.isAudioOn !== participant.isAudioOn ||
+          existing.isVideoOn !== participant.isVideoOn ||
+          existing.isScreenSharing !== participant.isScreenSharing ||
+          existing.isSpeaking !== participant.isSpeaking;
+
+        if (changed) {
+          Object.assign(existing, participant);
+          this.config.onMemberUpdated?.(existing);
+        }
+      }
+    }
+
+    this.lastParticipantIds = newParticipantIds;
   }
 
   /**
@@ -129,13 +270,28 @@ export class PresenceChannelManager {
    */
   leaveRoom(): void {
     try {
-      if (this.channel) {
-        this.config.echo.leave(`live-session.${this.config.roomId}`);
-        this.channel = null;
-        this.log('Left presence channel');
+      if (this.usePolling) {
+        this.stopPolling();
+      } else {
+        if (this.channel) {
+          this.config.echo.leave(`live-session.${this.config.roomId}`);
+          this.channel = null;
+        }
       }
+      this.log('Left presence channel');
     } catch (error) {
       this.error('Failed to leave presence channel', error);
+    }
+  }
+
+  /**
+   * Stop polling
+   */
+  private stopPolling(): void {
+    if (this.pollingIntervalId !== null) {
+      clearInterval(this.pollingIntervalId);
+      this.pollingIntervalId = null;
+      this.log('Stopped polling');
     }
   }
 
@@ -147,16 +303,44 @@ export class PresenceChannelManager {
     event?: PresenceEventName,
   ): void {
     try {
-      if (!this.channel) {
-        this.error('Channel not joined', new Error('Cannot update presence without joining'));
-        return;
+      if (this.usePolling) {
+        this.updatePresenceViaAPI(state, event);
+      } else {
+        this.updatePresenceViaReverb(state, event);
       }
+    } catch (error) {
+      this.error('Failed to update presence', error);
+    }
+  }
 
-      this.channel.whisper('presence-update', {
-        user_id: this.config.userId,
-        event,
-        ...state,
-      });
+  /**
+   * Update presence via polling API
+   */
+  private async updatePresenceViaAPI(
+    state: Partial<ParticipantPresence>,
+    event?: PresenceEventName,
+  ): Promise<void> {
+    try {
+      const response = await fetch(
+        `${this.apiBaseUrl}/bookings/${this.config.bookingId}/live-session/participants`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({
+            is_audio_on: state.isAudioOn,
+            is_video_on: state.isVideoOn,
+            is_screen_sharing: state.isScreenSharing,
+            is_speaking: state.isSpeaking,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to update presence: ${response.status}`);
+      }
 
       // Update local state
       const currentParticipant = this.participants.get(this.config.userId) || {
@@ -175,10 +359,48 @@ export class PresenceChannelManager {
       if (event) {
         this.config.onPresenceEvent?.(currentParticipant, event, state);
       }
-      this.log('Presence updated', { state, event });
+      this.log('Presence updated via API', { state, event });
     } catch (error) {
-      this.error('Failed to update presence', error);
+      this.error('Failed to update presence via API', error);
     }
+  }
+
+  /**
+   * Update presence via Reverb whisper
+   */
+  private updatePresenceViaReverb(
+    state: Partial<ParticipantPresence>,
+    event?: PresenceEventName,
+  ): void {
+    if (!this.channel) {
+      this.error('Channel not joined', new Error('Cannot update presence without joining'));
+      return;
+    }
+
+    this.channel.whisper('presence-update', {
+      user_id: this.config.userId,
+      event,
+      ...state,
+    });
+
+    // Update local state
+    const currentParticipant = this.participants.get(this.config.userId) || {
+      id: this.config.userId,
+      name: this.config.userName,
+      role: 'user',
+      isAudioOn: true,
+      isVideoOn: true,
+      isScreenSharing: false,
+      isSpeaking: false,
+    };
+
+    Object.assign(currentParticipant, state);
+    this.participants.set(this.config.userId, currentParticipant);
+
+    if (event) {
+      this.config.onPresenceEvent?.(currentParticipant, event, state);
+    }
+    this.log('Presence updated via Reverb', { state, event });
   }
 
   /**
@@ -266,6 +488,7 @@ export class PresenceChannelManager {
    * Cleanup and leave channel
    */
   destroy(): void {
+    this.stopPolling();
     this.leaveRoom();
     this.participants.clear();
     this.log('Presence manager destroyed');

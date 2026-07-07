@@ -784,9 +784,13 @@ export function LiveClassPage({
 
         presenceManager = new PresenceChannelManager({
           echo,
+          bookingId,
           roomId: session.room_id,
           userId: currentUserId,
           userName: user.name || "User",
+          usePolling: true, // Enable polling for shared hosting
+          pollIntervalMs: 1500, // Poll every 1.5 seconds
+          apiBaseUrl: '/api',
           onParticipantsReceived: async (participants) => {
             if (!isActive) return;
             console.log("[LiveClass] Participants received", {

@@ -1485,9 +1485,13 @@ export default function LiveClasView({ navigate, bookingId, user }: LiveClasView
 
       presenceManager = new PresenceChannelManager({
         echo,
+        bookingId: Number(bookingId),
         roomId: session.room_id!,
         userId: user.id,
         userName: user.name || "Tutor",
+        usePolling: true, // Enable polling for shared hosting
+        pollIntervalMs: 1500, // Poll every 1.5 seconds
+        apiBaseUrl: '/api',
         onParticipantsReceived: async (participants) => {
           if (!isActive) return;
           const filteredParticipants = participants.filter((participant) => participant.id !== user.id);
