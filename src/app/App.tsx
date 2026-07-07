@@ -917,15 +917,19 @@ export default function App() {
       setUser(data.user);
       toastSuccess("Registrasi berhasil! Selamat datang.");
       navigate("dashboard-siswa");
-      return true;
+      return { success: true, requires_verification: false, role: data.user?.role || "siswa" };
     }
 
-    // OTP sudah dikirim, menunggu verifikasi
-    return true;
+    return {
+      success: true,
+      requires_verification: data.requires_verification !== false,
+      message: data.message,
+      role: data.user?.role || "siswa",
+    };
   } catch (error: any) {
     console.error("❌ Error registerWithPhone:", error);
     toastError(error.message || "Registrasi gagal. Silakan coba lagi.");
-    return false;
+    return { success: false, requires_verification: false, message: error.message };
   } finally {
     setLoading((prev) => ({ ...prev, auth: false }));
   }

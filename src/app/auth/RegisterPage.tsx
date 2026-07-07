@@ -28,7 +28,12 @@ interface RegisterPageProps {
   startGoogleLogin: (role: "student" | "tutor") => void;
   sendPhoneOtp: (phone: string) => Promise<boolean>;
   verifyPhoneOtp: (phone: string, otp: string) => Promise<LoginResult>;
-  registerWithPhone: (phone: string, name: string) => Promise<boolean>;
+  registerWithPhone: (phone: string, name: string) => Promise<{
+    success: boolean;
+    requires_verification?: boolean;
+    message?: string;
+    role?: string;
+  }>;
   otpCooldown: number;
   loading: boolean;
   error: string | null;
@@ -83,10 +88,16 @@ export default function RegisterPage({
     return;
   }
 
-  const success = await registerWithPhone(phone, name);
-  if (success) {
-    setStep("otp");
-    setOtpError(null);
+  const result = await registerWithPhone(phone, name);
+  if (result.success) {
+    if (result.requires_verification) {
+      setStep("otp");
+      setOtpError(null);
+    } else if (result.role === "tutor") {
+      navigate("admin");
+    } else {
+      navigate("dashboard-siswa");
+    }
   }
 };
 
