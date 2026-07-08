@@ -1969,6 +1969,8 @@ export default function App() {
               navigate("booking");
             }}
             navigate={navigate}
+            apiFetch={apiFetch}
+            setTutors={setTutors}
             user={user}
           />
         )}

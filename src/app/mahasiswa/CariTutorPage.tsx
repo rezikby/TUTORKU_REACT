@@ -49,6 +49,8 @@ interface CariTutorPageProps {
   onSelectTutor: (tutor: Tutor) => void;
   navigate: (p: Page) => void;
   user?: { education_level?: string | null };
+  apiFetch?: (path: string, opts?: any) => Promise<any>;
+  setTutors?: (t: Tutor[]) => void;
 }
 
 const normalizeLevelValue = (level?: string | null) => {
@@ -83,43 +85,120 @@ export default function CariTutorPage({
   onSelectTutor,
   navigate,
   user,
+  apiFetch,
+  setTutors,
 }: CariTutorPageProps) {
   const { t } = useTranslation();
   const [priceFilter, setPriceFilter] = useState(170000);
   const [ratingFilter, setRatingFilter] = useState<number>(0);
   const [modeFilter, setModeFilter] = useState<"online" | "offline" | "keduanya">("keduanya");
-  const [sortBy, setSortBy] = useState<"rating" | "price" | "experience">("rating");
+  const [sortBy, setSortBy] = useState<"rating" | "price" | "experience" | "jarak_terdekat" | "jarak_terjauh">("rating");
+  const [userLatitude, setUserLatitude] = useState<number | null>(null);
+  const [userLongitude, setUserLongitude] = useState<number | null>(null);
+  const [locationPermissionRequested, setLocationPermissionRequested] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState<string>(mapEducationLevelToTutorLevel(user?.education_level));
 
-  const filteredTutors = tutors.filter((tutor) => {
-    const matchSearch = tutor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      tutor.subject_label?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      tutor.subjects?.some(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()));
-    
-    const matchPrice = (tutor.price_per_hour || tutor.price || 0) <= priceFilter;
-    
-    const matchRating = !ratingFilter || (tutor.rating || 0) >= ratingFilter;
-    
-    const matchMode = modeFilter === "keduanya" ||
-      (modeFilter === "online" && tutor.mode_online) ||
-      (modeFilter === "offline" && tutor.mode_offline);
+  
+
+  const getDistanceKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    const R = 6371; // Earth radius in km
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  const askUserLocation = () => {
+    if (!navigator.geolocation) {
+      alert("Browser tidak mendukung geolokasi.");
+      return;
+    }
+    setLocationPermissionRequested(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        setUserLatitude(lat);
+        setUserLongitude(lon);
+
+        // If apiFetch + setTutors provided, request server-side sorted tutors
+        if (apiFetch && setTutors) {
+          try {
+            const params = new URLSearchParams({ lat: String(lat), lon: String(lon), sort: 'jarak_terdekat' });
+            const res = await apiFetch(`/tutors?${params.toString()}`);
+            const data = res.data ?? res;
+            if (Array.isArray(data)) {
+              setTutors(data);
+            } else if (data.data) {
+              setTutors(data.data);
+            }
+          } catch (err) {
+            console.error('Gagal memuat tutor dengan lokasi:', err);
+          }
+        }
+      },
+      () => {
+        alert("Gagal mengambil lokasi. Periksa izin geolokasi.");
+      },
+      { enableHighAccuracy: true },
+    );
+  };
+
+  const tutorsWithLocation = (tutors ?? []).map((t: any) => {
+    const latitude = t.latitude != null ? Number(t.latitude) : null;
+    const longitude = t.longitude != null ? Number(t.longitude) : null;
+    const distance =
+      t.distance != null
+        ? Number(t.distance)
+        : (userLatitude != null && userLongitude != null && latitude != null && longitude != null
+            ? getDistanceKm(userLatitude, userLongitude, latitude, longitude)
+            : null);
+
+    return { ...t, latitude, longitude, distance };
+  });
+
+  const filtered = tutorsWithLocation
+    .filter((t: any) => {
+      const matchSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.subject_label?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.subjects?.some((s: any) => s.name.toLowerCase().includes(searchQuery.toLowerCase()));
+      
+      const matchPrice = (t.price_per_hour || t.price || 0) <= priceFilter;
+      
+      const matchRating = !ratingFilter || (t.rating || 0) >= ratingFilter;
+      
+      const matchMode = modeFilter === "keduanya" ||
+        (modeFilter === "online" && t.mode_online) ||
+        (modeFilter === "offline" && t.mode_offline);
 
     const levelValues = [
-      ...(tutor.levels ?? []),
-      ...(tutor.level_label ? tutor.level_label.split(/[/\\]/).map((value) => value.trim()) : []),
-      ...(tutor.level ? [tutor.level] : []),
+      ...(t.levels ?? []),
+      ...(t.level_label ? t.level_label.split(/[/\\]/).map((value: string) => value.trim()) : []),
+      ...(t.level ? [t.level] : []),
     ].map(normalizeLevelValue).filter(Boolean);
 
     const matchLevel = selectedLevel === "Semua" || levelValues.includes(normalizeLevelValue(selectedLevel));
     
     return matchSearch && matchPrice && matchRating && matchMode && matchLevel;
-  });
-
-  const sortedTutors = [...filteredTutors].sort((a, b) => {
-    if (sortBy === "rating") return (b.rating || 0) - (a.rating || 0);
-    if (sortBy === "price") return (a.price_per_hour || a.price || 0) - (b.price_per_hour || b.price || 0);
-    return (b.experience_years || 0) - (a.experience_years || 0);
-  });
+    })
+    .sort((a: any, b: any) => {
+      if (sortBy === "rating") return (b.rating ?? 0) - (a.rating ?? 0);
+      if (sortBy === "price") return (a.price_per_hour ?? a.price ?? 0) - (b.price_per_hour ?? b.price ?? 0);
+      if (sortBy === "jarak_terdekat") {
+        if (userLatitude == null || userLongitude == null) return 0;
+        return (a.distance ?? Infinity) - (b.distance ?? Infinity);
+      }
+      if (sortBy === "jarak_terjauh") {
+        if (userLatitude == null || userLongitude == null) return 0;
+        return (b.distance ?? -Infinity) - (a.distance ?? -Infinity);
+      }
+      return (b.experience_years ?? 0) - (a.experience_years ?? 0);
+    });
 
   const subjects = [...new Set(tutors.flatMap(t => 
     t.subjects?.map(s => s.name) || [t.subject_label || t.subject || ""]
@@ -222,7 +301,7 @@ export default function CariTutorPage({
         {/* RESULT COUNT & SORT */}
         <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2 xs:gap-3 mb-4 xs:mb-6">
           <span className="text-xs xs:text-sm text-gray-600">
-            {t("findTutor.results", { count: sortedTutors.length })}
+            {t("findTutor.results", { count: filtered.length })}
           </span>
           <div className="flex items-center gap-1.5 xs:gap-2 w-full xs:w-auto">
             <span className="text-[10px] xs:text-xs text-gray-500 whitespace-nowrap">{t("findTutor.sortLabel")}</span>
@@ -240,7 +319,7 @@ export default function CariTutorPage({
 
         {/* TUTOR LIST */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 xs:gap-3 md:gap-4">
-          {sortedTutors.map((tutor) => (
+          {filtered.map((tutor) => (
             <div
               key={tutor.id}
               className="bg-white rounded-lg xs:rounded-xl md:rounded-2xl p-3 xs:p-4 border border-gray-200 hover:shadow-lg transition-all cursor-pointer"
@@ -269,7 +348,7 @@ export default function CariTutorPage({
                     <span className="truncate">{tutor.city || tutor.province || t("findTutor.location")}</span>
                   </div>
                   <div className="flex flex-wrap gap-1 xs:gap-2 mt-1 xs:mt-2">
-                    {tutor.levels?.slice(0, 2).map((level) => (
+                    {tutor.levels?.slice(0, 2).map((level: string) => (
                       <span key={level} className="text-[7px] xs:text-xs bg-gray-100 text-gray-600 px-1.5 xs:px-2 py-0.5 rounded-full whitespace-nowrap">
                         {level}
                       </span>
@@ -307,7 +386,7 @@ export default function CariTutorPage({
           ))}
         </div>
 
-        {sortedTutors.length === 0 && (
+        {filtered.length === 0 && (
           <div className="text-center py-12">
             <p className="text-gray-500">{t("findTutor.noResults")}</p>
             <button

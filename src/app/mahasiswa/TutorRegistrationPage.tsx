@@ -45,6 +45,7 @@ export function TutorRegistrationPage({
   const [modeOnline, setModeOnline] = useState(true);
   const [modeOffline, setModeOffline] = useState(false);
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   // Step 3 — Pendidikan
   const [educations, setEducations] = useState([{ degree: "", institution: "", major: "", year_end: "" }]);
@@ -85,6 +86,31 @@ export function TutorRegistrationPage({
   useEffect(() => {
     loadOrStart();
   }, []);
+
+  // When user picks a profile photo, upload it immediately to extract EXIF GPS and prefill city/province
+  useEffect(() => {
+    if (!profilePhoto) return;
+
+    const upload = async () => {
+      setUploadingPhoto(true);
+      try {
+        const fd = new FormData();
+        fd.append("profile_photo", profilePhoto);
+        const data = await apiFetch("/tutor/registration/photo", { method: "POST", body: fd });
+        const prof = data.data ?? data;
+        setProfile(prof);
+        if (prof?.city) setCity(prof.city);
+        if (prof?.province) setProvince(prof.province);
+        toastSuccess(t("tutorRegistration.step2Saved"));
+      } catch (e: any) {
+        toastError(e.message || t("tutorRegistration.step2SaveFailed"));
+      } finally {
+        setUploadingPhoto(false);
+      }
+    };
+
+    upload();
+  }, [profilePhoto]);
 
   // Show success alert when tutor verified by admin
   useEffect(() => {

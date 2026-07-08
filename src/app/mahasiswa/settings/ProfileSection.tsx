@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Camera, User, Mail, Shield, Check, X, Loader2, GraduationCap, BookOpen } from "lucide-react";
+import { Camera, User, Mail, Shield, Check, X, Loader2, GraduationCap, BookOpen, MapPin } from "lucide-react";
 import { toastError, toastSuccess } from "../../lib/swal";
 
 export default function ProfileSection({ 
@@ -18,10 +18,14 @@ export default function ProfileSection({
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [latInput, setLatInput] = useState<string | null>(null);
+  const [lonInput, setLonInput] = useState<string | null>(null);
 
   useEffect(() => {
     setProfileUser(user);
     setNameInput(user?.name ?? "");
+    setLatInput(user?.tutorProfile?.latitude ?? null);
+    setLonInput(user?.tutorProfile?.longitude ?? null);
   }, [user]);
 
   const getInitials = (name: string) => {
@@ -217,6 +221,59 @@ export default function ProfileSection({
             <label className="text-xs font-medium text-gray-500">Email</label>
           </div>
           <p className="text-sm text-gray-900 mt-0.5">{profileUser?.email ?? "-"}</p>
+        </div>
+
+        {/* Location (map) */}
+        <div className="border-t border-gray-100 pt-4">
+          <div className="flex items-center gap-2">
+            <MapPin />
+            <label className="text-xs font-medium text-gray-500">Lokasi (Latitude / Longitude)</label>
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <input
+              placeholder="Latitude"
+              value={latInput ?? ""}
+              onChange={(e) => setLatInput(e.target.value)}
+              className="w-full border-b border-gray-200 px-0 py-1 text-sm text-gray-900 focus:outline-none focus:border-blue-500"
+            />
+            <input
+              placeholder="Longitude"
+              value={lonInput ?? ""}
+              onChange={(e) => setLonInput(e.target.value)}
+              className="w-full border-b border-gray-200 px-0 py-1 text-sm text-gray-900 focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <div className="mt-2 flex gap-2">
+            <button
+              onClick={async () => {
+                try {
+                  setSavingKey('location');
+                  const body = { tutor_profile: { latitude: latInput ? Number(latInput) : null, longitude: lonInput ? Number(lonInput) : null } };
+                  const res = await apiFetch('/profile', { method: 'PUT', body: JSON.stringify(body) });
+                  const updated = res.data ?? res;
+                  setProfileUser(updated);
+                  onUpdateUser(updated);
+                  toastSuccess('Lokasi tersimpan');
+                } catch (err) {
+                  toastError('Gagal menyimpan lokasi');
+                } finally {
+                  setSavingKey(null);
+                }
+              }}
+              className="px-3 py-1 bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors rounded disabled:opacity-50"
+            >
+              Simpan Lokasi
+            </button>
+            <button
+              onClick={() => {
+                setLatInput(profileUser?.tutorProfile?.latitude ?? null);
+                setLonInput(profileUser?.tutorProfile?.longitude ?? null);
+              }}
+              className="px-3 py-1 border border-gray-300 text-gray-600 text-xs font-medium hover:bg-gray-50 transition-colors rounded"
+            >
+              Reset
+            </button>
+          </div>
         </div>
       </div>
     </div>
