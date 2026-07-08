@@ -374,7 +374,7 @@ export default function RiwayatSesi({
                                 <div className="flex justify-between items-center mb-1 text-xs text-gray-600">
                                   <span>{t("sessionHistory.score")}</span>
                                   <span className="text-lg font-bold text-blue-600">
-                                    {session.pretest_score ?? 0}/{session.pretest_total_questions ?? 0}
+                                    {session.pretest_score ?? 0} {t("sessionHistory.outOf")} {session.pretest_total_questions ?? 0}
                                   </span>
                                 </div>
                                 <div className="w-full bg-gray-200 rounded h-1.5">
@@ -412,7 +412,7 @@ export default function RiwayatSesi({
                                 <div className="flex justify-between items-center mb-1 text-xs text-gray-600">
                                   <span>{t("sessionHistory.score")}</span>
                                   <span className="text-lg font-bold text-emerald-600">
-                                    {session.posttest_score ?? 0}/{session.posttest_total_questions ?? 0}
+                                    {session.posttest_score ?? 0} {t("sessionHistory.outOf")} {session.posttest_total_questions ?? 0}
                                   </span>
                                 </div>
                                 <div className="w-full bg-gray-200 rounded h-1.5">
