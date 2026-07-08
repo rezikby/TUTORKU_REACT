@@ -362,14 +362,41 @@ export default function BookingPage(props: any) {
   const tutorCoordinates = React.useMemo(() => {
     const lat = parseSafeNumber(fullTutor?.latitude ?? fullTutor?.lat ?? fullTutor?.location_latitude ?? fullTutor?.latitude ?? null);
     const lng = parseSafeNumber(fullTutor?.longitude ?? fullTutor?.lng ?? fullTutor?.location_longitude ?? fullTutor?.longitude ?? null);
-    return lat !== null && lng !== null ? { lat, lng } : null;
+    
+    // Validate coordinate ranges (latitude: -90 to 90, longitude: -180 to 180)
+    const isValidCoord = lat !== null && lng !== null && 
+                         lat >= -90 && lat <= 90 && 
+                         lng >= -180 && lng <= 180;
+    
+    if (!isValidCoord) {
+      console.warn("[BookingPage] Tutor coordinates invalid or missing", {
+        latitude: lat,
+        longitude: lng,
+        fullTutorLat: fullTutor?.latitude,
+        fullTutorLng: fullTutor?.longitude,
+        fullTutorLocationLat: fullTutor?.location_latitude,
+        fullTutorLocationLng: fullTutor?.location_longitude,
+      });
+      return null;
+    }
+    
+    return { lat, lng };
   }, [fullTutor?.latitude, fullTutor?.longitude, fullTutor?.lat, fullTutor?.lng, fullTutor?.location_latitude, fullTutor?.location_longitude]);
 
   const travelDistanceKm = React.useMemo(() => {
     if (effectiveMode !== 'offline' || !locationLat || !locationLng || !tutorCoordinates) return null;
+    
     const userLat = parseSafeNumber(locationLat);
     const userLng = parseSafeNumber(locationLng);
-    if (userLat === null || userLng === null) return null;
+    
+    // Validate user coordinates
+    if (userLat === null || userLng === null || userLat < -90 || userLat > 90 || userLng < -180 || userLng > 180) {
+      console.warn("[BookingPage] User coordinates invalid", {
+        latitude: userLat,
+        longitude: userLng,
+      });
+      return null;
+    }
 
     const toRadians = (value: number) => (value * Math.PI) / 180;
     const dLat = toRadians(tutorCoordinates.lat - userLat);
@@ -379,7 +406,15 @@ export default function BookingPage(props: any) {
     const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const earthRadiusKm = 6371;
-    return Number((earthRadiusKm * c).toFixed(1));
+    const distance = Number((earthRadiusKm * c).toFixed(1));
+    
+    console.log("[BookingPage] Distance calculated", {
+      tutorCoords: tutorCoordinates,
+      userCoords: { lat: userLat, lng: userLng },
+      distanceKm: distance,
+    });
+    
+    return distance;
   }, [effectiveMode, locationLat, locationLng, tutorCoordinates]);
 
   const roundNominal = (value: number, unit = 1000) =>
@@ -1125,6 +1160,13 @@ export default function BookingPage(props: any) {
               </div>
 
               <div className="border-t border-gray-200 mt-4 pt-4 space-y-3">
+                {effectiveMode === 'offline' && !tutorCoordinates && locationLat && locationLng && (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                    <p className="font-medium">⚠️ {t("bookingPage.summary.tutorLocationUnavailable")}</p>
+                    <p className="text-xs mt-1">Lokasi tutor belum tersedia. Silakan hubungi tutor terlebih dahulu.</p>
+                  </div>
+                )}
+                
                 {effectiveMode === 'offline' && travelDistanceKm !== null && (
                   <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
                     <div className="flex justify-between mb-1">
