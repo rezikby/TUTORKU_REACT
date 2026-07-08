@@ -243,6 +243,11 @@ export function TutorRegistrationPage({
 
     setSubmitting(true);
     try {
+      if (!initialCaptchaToken) {
+        toastError("reCAPTCHA belum diverifikasi. Silakan coba lagi.");
+        return;
+      }
+
       const formData = new FormData();
       formData.append("cv", cv);
       formData.append("ktp_photo", ktpPhoto);
@@ -251,6 +256,7 @@ export function TutorRegistrationPage({
       formData.append("bank_name", bankName);
       formData.append("bank_account_number", bankAccountNumber);
       formData.append("bank_account_holder", bankAccountHolder);
+      formData.append("recaptcha_token", initialCaptchaToken);
 
       const data = await apiFetch("/tutor/registration/step-4", { method: "POST", body: formData });
       setProfile(data.data ?? data);
