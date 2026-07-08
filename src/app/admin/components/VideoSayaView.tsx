@@ -267,12 +267,12 @@ export default function VideoSayaView({ initialShowUpload = false, apiFetch }: V
             <h3 className="text-base font-semibold text-gray-900">Edit Video / Materi</h3>
             <div className="mt-4 space-y-3">
               <div>
-                <label className="text-sm text-gray-600">Judul</label>
-                <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full border border-gray-200 rounded px-3 py-2 mt-1" />
+                <label className="text-sm font-semibold text-gray-900">Judul</label>
+                <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 mt-1 text-base text-gray-900 font-medium placeholder:text-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none transition-all" />
               </div>
               <div>
-                <label className="text-sm text-gray-600">Deskripsi</label>
-                <textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} rows={4} className="w-full border border-gray-200 rounded px-3 py-2 mt-1" />
+                <label className="text-sm font-semibold text-gray-900">Deskripsi</label>
+                <textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} rows={4} className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 mt-1 text-base text-gray-900 font-medium placeholder:text-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none transition-all resize-none" />
               </div>
               <div className="flex items-center justify-between rounded border border-gray-200 p-3">
                 <div>

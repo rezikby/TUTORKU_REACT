@@ -76,6 +76,7 @@ export default function UploadVideoPage({ onCancel, onSaved }: UploadVideoPagePr
     const formData = new FormData();
     formData.append("title", title);
     formData.append("description", description);
+    formData.append("type", "video");
     formData.append("comments_enabled", commentsEnabled ? "1" : "0");
     formData.append("file", videoFile);
     if (thumbnail) {
@@ -291,7 +292,7 @@ export default function UploadVideoPage({ onCancel, onSaved }: UploadVideoPagePr
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Contoh: Belajar Limit Fungsi untuk Pemula"
-                className="w-full bg-background/80 border border-border rounded-xl px-4 py-3 text-sm text-white placeholder:text-muted-foreground outline-none focus:border-primary transition-all"
+                className="w-full bg-white border-2 border-gray-300 rounded-xl px-4 py-3 text-base text-gray-900 placeholder:text-gray-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 transition-all font-medium"
                 required
               />
             </div>
@@ -304,7 +305,7 @@ export default function UploadVideoPage({ onCancel, onSaved }: UploadVideoPagePr
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Jelaskan isi video, materi yang dibahas, dan target siswa"
                 rows={4}
-                className="w-full bg-background/80 border border-border rounded-xl px-4 py-3 text-sm text-white placeholder:text-muted-foreground outline-none focus:border-primary transition-all resize-none"
+                className="w-full bg-white border-2 border-gray-300 rounded-xl px-4 py-3 text-base text-gray-900 placeholder:text-gray-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 transition-all resize-none font-medium"
               />
             </div>
             <div className="flex items-center justify-between rounded-xl border border-border bg-background/50 p-4">
