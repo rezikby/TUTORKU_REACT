@@ -92,7 +92,7 @@ export default function RiwayatSesi({
       setSessions(sessionsList);
     } catch (err: any) {
       console.error("Failed to load sessions:", err);
-      setError(err?.message || "Gagal memuat riwayat sesi. Silakan coba lagi.");
+      setError(err?.message || t("sessionHistory.loadFailed"));
       setSessions([]);
     } finally {
       setLoading(false);
@@ -219,13 +219,13 @@ export default function RiwayatSesi({
             onClick={() => navigate("dashboard-siswa")}
             className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-4"
           >
-            <ArrowLeft size={16} /> Kembali
+            <ArrowLeft size={16} /> {t("sessionHistory.back")}
           </button>
           <div className="text-center py-12">
             <div className="inline-block">
               <div className="h-10 w-10 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin"></div>
             </div>
-            <p className="mt-3 text-sm text-gray-600">Memuat riwayat sesi...</p>
+            <p className="mt-3 text-sm text-gray-600">{t("sessionHistory.loading")}</p>
           </div>
         </div>
       </div>
@@ -240,11 +240,11 @@ export default function RiwayatSesi({
             onClick={() => navigate("dashboard-siswa")}
             className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-4"
           >
-            <ArrowLeft size={16} /> Kembali
+            <ArrowLeft size={16} /> {t("sessionHistory.back")}
           </button>
           <div className="border border-red-200 bg-red-50 p-4 rounded text-center">
             <AlertCircle size={24} className="mx-auto text-red-600 mb-2" />
-            <p className="text-sm text-red-700">{error}</p>
+              <p className="text-sm text-red-700">{error}</p>
             <button
               onClick={() => void loadSessions()}
               className="mt-3 inline-flex items-center gap-2 bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 rounded"
@@ -260,12 +260,12 @@ export default function RiwayatSesi({
   return (
     <div className="min-h-screen bg-white pt-4 pb-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
-        <button
-          onClick={() => navigate("dashboard-siswa")}
-          className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-4"
-        >
-          <ArrowLeft size={16} /> Kembali
-        </button>
+            <button
+              onClick={() => navigate("dashboard-siswa")}
+              className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-4"
+            >
+              <ArrowLeft size={16} /> {t("sessionHistory.back")}
+            </button>
 
         <div className="mb-6">
           <div className="flex items-center gap-3">
@@ -273,10 +273,8 @@ export default function RiwayatSesi({
               <BookOpen size={24} className="text-blue-600" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Riwayat Sesi</h1>
-              <p className="text-sm text-gray-500">
-                Daftar semua sesi yang sudah kamu selesaikan
-              </p>
+              <h1 className="text-2xl font-bold text-gray-900">{t("sessionHistory.title")}</h1>
+              <p className="text-sm text-gray-500">{t("sessionHistory.subtitle")}</p>
             </div>
           </div>
         </div>
@@ -284,12 +282,8 @@ export default function RiwayatSesi({
         {sessions.length === 0 ? (
           <div className="border border-gray-200 bg-gray-50 rounded p-8 text-center">
             <BookOpen size={40} className="mx-auto text-gray-300 mb-3" />
-            <p className="text-base font-medium text-gray-600">
-              Belum ada sesi yang selesai
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              Sesi yang sudah kamu selesaikan akan muncul di sini
-            </p>
+            <p className="text-base font-medium text-gray-600">{t("sessionHistory.emptyTitle")}</p>
+            <p className="mt-1 text-sm text-gray-500">{t("sessionHistory.emptyDescription")}</p>
           </div>
         ) : (
           <div className="grid gap-3">
@@ -327,10 +321,10 @@ export default function RiwayatSesi({
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
                         <h3 className="text-base font-semibold text-gray-900">
-                          {session.subject_name}
+                          {session.subject_name ?? t("sessionHistory.subjectFallback")}
                         </h3>
                         <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-medium">
-                          <CheckCircle size={12} /> Selesai
+                          <CheckCircle size={12} /> {t("sessionHistory.completed")}
                         </span>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-gray-600">
@@ -344,7 +338,7 @@ export default function RiwayatSesi({
                         </div>
                         <div className="flex items-center gap-1">
                           <Award size={14} className="text-gray-400" />
-                          {session.tutor_name}
+                          {session.tutor_name ?? t("sessionHistory.tutorFallback")}
                         </div>
                       </div>
                     </div>
@@ -372,13 +366,13 @@ export default function RiwayatSesi({
                         <div className="bg-white p-3 border border-gray-200 rounded">
                           <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2 text-sm">
                             <BookOpen size={16} className="text-blue-600" />
-                            Pre-Test
+                            {t("sessionHistory.pretestTitle")}
                           </h4>
                           {session.pretest_completed ? (
                             <div>
                               <div className="mb-2">
                                 <div className="flex justify-between items-center mb-1 text-xs text-gray-600">
-                                  <span>Skor</span>
+                                  <span>{t("sessionHistory.score")}</span>
                                   <span className="text-lg font-bold text-blue-600">
                                     {session.pretest_score ?? 0}/{session.pretest_total_questions ?? 0}
                                   </span>
@@ -401,7 +395,7 @@ export default function RiwayatSesi({
                           ) : (
                             <div className="text-center py-3 text-gray-500">
                               <AlertCircle size={18} className="mx-auto mb-1 text-gray-400" />
-                              <p className="text-xs">Belum mengerjakan pre-test</p>
+                              <p className="text-xs">{t("sessionHistory.notCompletedPretest")}</p>
                             </div>
                           )}
                         </div>
@@ -410,13 +404,13 @@ export default function RiwayatSesi({
                         <div className="bg-white p-3 border border-gray-200 rounded">
                           <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2 text-sm">
                             <CheckCircle size={16} className="text-emerald-600" />
-                            Post-Test
+                            {t("sessionHistory.posttestTitle")}
                           </h4>
                           {session.posttest_completed ? (
                             <div>
                               <div className="mb-2">
                                 <div className="flex justify-between items-center mb-1 text-xs text-gray-600">
-                                  <span>Skor</span>
+                                  <span>{t("sessionHistory.score")}</span>
                                   <span className="text-lg font-bold text-emerald-600">
                                     {session.posttest_score ?? 0}/{session.posttest_total_questions ?? 0}
                                   </span>
@@ -439,7 +433,7 @@ export default function RiwayatSesi({
                           ) : (
                             <div className="text-center py-3 text-gray-500">
                               <AlertCircle size={18} className="mx-auto mb-1 text-gray-400" />
-                              <p className="text-xs">Belum mengerjakan post-test</p>
+                                <p className="text-xs">{t("sessionHistory.notCompletedPosttest")}</p>
                             </div>
                           )}
                         </div>
@@ -451,7 +445,7 @@ export default function RiwayatSesi({
                           <div className="flex items-center gap-2">
                             <Award size={18} className="text-yellow-600" />
                             <div>
-                              <p className="text-xs text-yellow-700 font-medium">Poin yang Diraih</p>
+                              <p className="text-xs text-yellow-700 font-medium">{t("sessionHistory.pointsEarned")}</p>
                               <p className="font-bold text-yellow-600">+{session.points_earned}</p>
                             </div>
                           </div>
@@ -461,7 +455,7 @@ export default function RiwayatSesi({
                       {/* Rating Section */}
                       {session.rating !== null && (
                         <div className="mt-3 bg-indigo-50 border border-indigo-200 p-3 rounded text-sm">
-                          <p className="text-xs text-indigo-700 font-medium mb-1">Rating Sesi</p>
+                          <p className="text-xs text-indigo-700 font-medium mb-1">{t("sessionHistory.ratingTitle")}</p>
                           <div className="flex items-center gap-0.5">
                             {Array.from({ length: 5 }).map((_, i) => (
                               <span
