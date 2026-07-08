@@ -20,12 +20,15 @@ type CurrentUser = {
   id: number;
   name: string;
   avatar?: string | null;
+  education_level?: string | null;
 } | null;
 
 type ForumPost = {
   id: number;
   user: { id?: number; name: string; avatar?: string | null } | string;
   category: string;
+  subject?: { id?: number; name?: string | null; slug?: string | null } | null;
+  education_level?: string | null;
   title: string;
   body: string;
   likes: number;
@@ -39,6 +42,12 @@ type ForumPost = {
 };
 
 type ForumCategory = {
+  id: number;
+  name: string;
+  slug: string;
+};
+
+type ForumSubject = {
   id: number;
   name: string;
   slug: string;
@@ -67,7 +76,12 @@ export function ForumPage({
   const [activeCategory, setActiveCategory] = useState("Semua");
   const [searchQuery, setSearchQuery] = useState("");
   const [forumCategories, setForumCategories] = useState<ForumCategory[]>([]);
+  const [forumSubjects, setForumSubjects] = useState<ForumSubject[]>([]);
+  const [activeSubject, setActiveSubject] = useState<number | null>(null);
+  const [activeEducationLevel, setActiveEducationLevel] = useState<string>("Semua");
   const [newCategoryId, setNewCategoryId] = useState<number | null>(null);
+  const [newSubjectId, setNewSubjectId] = useState<number | null>(null);
+  const [newEducationLevel, setNewEducationLevel] = useState<string>("");
   const [newTitle, setNewTitle] = useState("");
   const [newBody, setNewBody] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -85,7 +99,43 @@ export function ForumPage({
   const [deletingPostId, setDeletingPostId] = useState<number | null>(null);
 
   const categories = ["Semua", ...forumCategories.map((c) => c.name)];
+  const levelOptions = ["Semua", "SD", "SMP/MTS", "SMA/SMK", "Universitas/Politeknik"];
+  const subjectOptions = [{ id: null, name: t("forum.allSubjects") }, ...forumSubjects.map((subject) => ({ id: subject.id, name: subject.name }))];
   const getCategoryLabel = (c: string) => (c === "Semua" ? t("forum.allCategories") : c);
+
+  const normalizeEducationLevel = (level?: string | null) => {
+    const normalized = (level ?? "").trim().toLowerCase();
+    if (!normalized) return "";
+    if (normalized.includes("sd")) return "SD";
+    if (normalized.includes("smp") || normalized.includes("mts")) return "SMP/MTS";
+    if (normalized.includes("sma") || normalized.includes("smk")) return "SMA/SMK";
+    if (normalized.includes("universitas") || normalized.includes("politeknik") || normalized.includes("mahasiswa")) {
+      return "Universitas/Politeknik";
+    }
+    return level?.trim() ?? "";
+  };
+
+  const getDefaultSubjectId = (subjects: ForumSubject[], level?: string | null) => {
+    const normalized = normalizeEducationLevel(level);
+    const levelKeywords = {
+      SD: ["sd", "mi"],
+      "SMP/MTS": ["smp", "mts"],
+      "SMA/SMK": ["sma", "smk"],
+      "Universitas/Politeknik": ["universitas", "politeknik", "mahasiswa"],
+    } as Record<string, string[]>;
+
+    const keywords = levelKeywords[normalized as keyof typeof levelKeywords] ?? [];
+
+    if (keywords.length > 0) {
+      const matched = subjects.find((subject) => {
+        const subjectName = subject.name.toLowerCase();
+        return keywords.some((keyword) => subjectName.includes(keyword));
+      });
+      if (matched) return matched.id;
+    }
+
+    return subjects[0]?.id ?? null;
+  };
 
   const loadCategories = async () => {
     try {
@@ -100,9 +150,28 @@ export function ForumPage({
     }
   };
 
+  const loadSubjects = async () => {
+    try {
+      const data = await apiFetch("/subjects");
+      const items = data.data ?? data;
+      setForumSubjects(items);
+    } catch (error) {
+      console.error("Gagal memuat mata pelajaran forum", error);
+    }
+  };
+
   useEffect(() => {
     loadCategories();
+    loadSubjects();
   }, []);
+
+  useEffect(() => {
+    if (showCreateForm && forumSubjects.length > 0) {
+      const defaultSubjectId = getDefaultSubjectId(forumSubjects, user?.education_level);
+      setNewSubjectId(defaultSubjectId);
+      setNewEducationLevel(normalizeEducationLevel(user?.education_level));
+    }
+  }, [showCreateForm, forumSubjects, user?.education_level]);
 
   useEffect(() => {
     const postLikes = posts
@@ -344,8 +413,10 @@ export function ForumPage({
 
   const filtered = posts
     .filter((post) => {
-      if (activeCategory === "Semua") return true;
-      return post.category === activeCategory;
+      if (activeCategory !== "Semua" && post.category !== activeCategory) return false;
+      if (activeSubject !== null && post.subject?.id !== activeSubject) return false;
+      if (activeEducationLevel !== "Semua" && post.education_level !== activeEducationLevel) return false;
+      return true;
     })
     .filter((post) => {
       if (!searchQuery.trim()) return true;
@@ -353,7 +424,8 @@ export function ForumPage({
       return (
         post.title.toLowerCase().includes(query) ||
         post.body.toLowerCase().includes(query) ||
-        post.category.toLowerCase().includes(query)
+        post.category.toLowerCase().includes(query) ||
+        (post.subject?.name ?? "").toLowerCase().includes(query)
       );
     });
 
@@ -430,6 +502,38 @@ export function ForumPage({
               </div>
 
               <div>
+                <label className="block text-xs xs:text-sm font-medium text-gray-700 mb-1.5 xs:mb-2">{t("forum.subject")}</label>
+                <select
+                  value={newSubjectId ?? ""}
+                  onChange={(event) => setNewSubjectId(event.target.value ? Number(event.target.value) : null)}
+                  className="w-full rounded border border-gray-200 bg-white px-2.5 xs:px-4 py-1.5 xs:py-2 text-xs xs:text-sm text-gray-900 focus:border-blue-400 focus:outline-none"
+                >
+                  <option value="">{t("forum.selectSubjectPlaceholder")}</option>
+                  {forumSubjects.map((subject) => (
+                    <option key={subject.id} value={subject.id}>
+                      {subject.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs xs:text-sm font-medium text-gray-700 mb-1.5 xs:mb-2">{t("forum.educationLevel")}</label>
+                <select
+                  value={newEducationLevel}
+                  onChange={(event) => setNewEducationLevel(event.target.value)}
+                  className="w-full rounded border border-gray-200 bg-white px-2.5 xs:px-4 py-1.5 xs:py-2 text-xs xs:text-sm text-gray-900 focus:border-blue-400 focus:outline-none"
+                >
+                  <option value="">{t("forum.selectLevelPlaceholder")}</option>
+                  {levelOptions.filter((level) => level !== "Semua").map((level) => (
+                    <option key={level} value={level}>
+                      {level}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
                 <label className="block text-xs xs:text-sm font-medium text-gray-700 mb-1.5 xs:mb-2">{t("forum.postTitleLabel")}</label>
                 <input
                   type="text"
@@ -482,6 +586,8 @@ export function ForumPage({
                         method: "POST",
                         body: JSON.stringify({
                           forum_category_id: newCategoryId,
+                          subject_id: newSubjectId ?? null,
+                          education_level: newEducationLevel || null,
                           title: newTitle.trim(),
                           body: newBody.trim(),
                         }),
@@ -492,6 +598,8 @@ export function ForumPage({
                       setShowCreateForm(false);
                       setNewTitle("");
                       setNewBody("");
+                      setNewSubjectId(getDefaultSubjectId(forumSubjects, user?.education_level));
+                      setNewEducationLevel(normalizeEducationLevel(user?.education_level));
                       toastSuccess(t("forum.postCreated"));
                     } catch (error: any) {
                       console.error("Gagal membuat post forum", error);
@@ -538,6 +646,37 @@ export function ForumPage({
             className="w-full px-2.5 xs:px-4 py-2 xs:py-2.5 pl-8 xs:pl-10 border border-gray-200 bg-white text-xs xs:text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-400 rounded"
           />
           <Search size={16} className="absolute left-2.5 xs:left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        </div>
+
+        <div className="grid gap-2 xs:grid-cols-2 mb-3 xs:mb-4">
+          <div>
+            <label className="block text-[10px] xs:text-xs font-medium text-gray-600 mb-1">{t("forum.subjectFilter")}</label>
+            <select
+              value={activeSubject ?? ""}
+              onChange={(event) => setActiveSubject(event.target.value ? Number(event.target.value) : null)}
+              className="w-full rounded border border-gray-200 bg-white px-2.5 xs:px-3 py-1.5 xs:py-2 text-xs xs:text-sm text-gray-900 focus:border-blue-400 focus:outline-none"
+            >
+              {subjectOptions.map((subject) => (
+                <option key={subject.id ?? "all"} value={subject.id ?? ""}>
+                  {subject.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] xs:text-xs font-medium text-gray-600 mb-1">{t("forum.levelFilter")}</label>
+            <select
+              value={activeEducationLevel}
+              onChange={(event) => setActiveEducationLevel(event.target.value)}
+              className="w-full rounded border border-gray-200 bg-white px-2.5 xs:px-3 py-1.5 xs:py-2 text-xs xs:text-sm text-gray-900 focus:border-blue-400 focus:outline-none"
+            >
+              {levelOptions.map((level) => (
+                <option key={level} value={level}>
+                  {level === "Semua" ? t("forum.allLevels") : level}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Trending */}
@@ -595,6 +734,16 @@ export function ForumPage({
                           <span className="text-[9px] xs:text-[10px] px-1.5 xs:px-2 py-0.5 bg-blue-50 text-blue-600 font-medium border border-blue-200 rounded">
                             {post.category}
                           </span>
+                          {post.subject?.name && (
+                            <span className="text-[9px] xs:text-[10px] px-1.5 xs:px-2 py-0.5 bg-purple-50 text-purple-600 font-medium border border-purple-200 rounded">
+                              {post.subject.name}
+                            </span>
+                          )}
+                          {post.education_level && (
+                            <span className="text-[9px] xs:text-[10px] px-1.5 xs:px-2 py-0.5 bg-emerald-50 text-emerald-600 font-medium border border-emerald-200 rounded">
+                              {post.education_level}
+                            </span>
+                          )}
                           {post.solved && (
                             <span className="text-[9px] xs:text-[10px] px-1.5 xs:px-2 py-0.5 bg-green-50 text-green-600 font-medium border border-green-200 flex items-center gap-0.5 rounded">
                               <Check size={8} /> {t("forum.answered")}

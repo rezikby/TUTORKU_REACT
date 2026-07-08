@@ -112,7 +112,7 @@ export default function JenjangPage({ apiFetch, user, navigate, onUpdateUser }: 
         {/* Header */}
         <div className="flex flex-col items-center text-center mb-8">
           <img 
-            src="/img/logo-edukasi.png" 
+            src="/img/logo1.png" 
             alt="Edukasi" 
             className="w-20 h-20 object-contain mb-4"
           />
