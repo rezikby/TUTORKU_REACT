@@ -81,8 +81,8 @@ export default function RiwayatSesi({
         return {
           id: booking.id,
           booking_id: booking.id,
-          subject_name: subjectName || "Pelajaran",
-          tutor_name: tutorName || "Tutor",
+          subject_name: subjectName || undefined,
+          tutor_name: tutorName || undefined,
           date: booking.date || "-",
           start_time: booking.start_time || "-",
           status: booking.status || "completed",
@@ -249,7 +249,7 @@ export default function RiwayatSesi({
               onClick={() => void loadSessions()}
               className="mt-3 inline-flex items-center gap-2 bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 rounded"
             >
-              Coba Lagi
+              {t("sessionHistory.retry")}
             </button>
           </div>
         </div>
