@@ -364,22 +364,33 @@ export default function BookingPage(props: any) {
     const lng = parseSafeNumber(fullTutor?.longitude ?? fullTutor?.lng ?? fullTutor?.location_longitude ?? fullTutor?.longitude ?? null);
     
     // Validate coordinate ranges (latitude: -90 to 90, longitude: -180 to 180)
+    // Also reject (0, 0) which is a placeholder value (Null Island)
     const isValidCoord = lat !== null && lng !== null && 
                          lat >= -90 && lat <= 90 && 
-                         lng >= -180 && lng <= 180;
+                         lng >= -180 && lng <= 180 &&
+                         !(lat === 0 && lng === 0); // Reject placeholder (0, 0)
     
     if (!isValidCoord) {
-      console.warn("[BookingPage] Tutor coordinates invalid or missing", {
-        latitude: lat,
-        longitude: lng,
-        fullTutorLat: fullTutor?.latitude,
-        fullTutorLng: fullTutor?.longitude,
-        fullTutorLocationLat: fullTutor?.location_latitude,
-        fullTutorLocationLng: fullTutor?.location_longitude,
+      const isNullIsland = lat === 0 && lng === 0;
+      console.warn("[BookingPage] ⚠️ Tutor coordinates invalid or missing", {
+        rawLatitude: fullTutor?.latitude,
+        rawLongitude: fullTutor?.longitude,
+        rawLat: fullTutor?.lat,
+        rawLng: fullTutor?.lng,
+        rawLocationLatitude: fullTutor?.location_latitude,
+        rawLocationLongitude: fullTutor?.location_longitude,
+        parsedLat: lat,
+        parsedLng: lng,
+        isNullIsland: isNullIsland,
+        message: isNullIsland ? "Tutor coordinates are (0,0) - placeholder value, tutor must set location" : "Tutor coordinates are invalid",
       });
       return null;
     }
     
+    console.log("[BookingPage] ✓ Tutor coordinates found and valid", {
+      latitude: lat,
+      longitude: lng,
+    });
     return { lat, lng };
   }, [fullTutor?.latitude, fullTutor?.longitude, fullTutor?.lat, fullTutor?.lng, fullTutor?.location_latitude, fullTutor?.location_longitude]);
 
@@ -391,9 +402,11 @@ export default function BookingPage(props: any) {
     
     // Validate user coordinates
     if (userLat === null || userLng === null || userLat < -90 || userLat > 90 || userLng < -180 || userLng > 180) {
-      console.warn("[BookingPage] User coordinates invalid", {
+      console.warn("[BookingPage] ⚠️ User coordinates invalid", {
         latitude: userLat,
         longitude: userLng,
+        raw_lat: locationLat,
+        raw_lng: locationLng,
       });
       return null;
     }
@@ -408,10 +421,12 @@ export default function BookingPage(props: any) {
     const earthRadiusKm = 6371;
     const distance = Number((earthRadiusKm * c).toFixed(1));
     
-    console.log("[BookingPage] Distance calculated", {
+    console.log("[BookingPage] 📍 Distance calculated", {
       tutorCoords: tutorCoordinates,
       userCoords: { lat: userLat, lng: userLng },
       distanceKm: distance,
+      deltaLat: tutorCoordinates.lat - userLat,
+      deltaLng: tutorCoordinates.lng - userLng,
     });
     
     return distance;
