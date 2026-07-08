@@ -222,7 +222,20 @@ export function TutorRegistrationPage({
       setProfile(data.data ?? data);
       toastSuccess(t("tutorRegistration.step2Saved"));
     } catch (error: any) {
-      toastError(error.message || t("tutorRegistration.step2SaveFailed"));
+      // Handle specific validation errors
+      let errorMsg = error.message || t("tutorRegistration.step2SaveFailed");
+      
+      if (error.errors) {
+        if (error.errors.google_maps_url) {
+          errorMsg = `Google Maps URL tidak valid. ${error.errors.google_maps_url[0] || 'Gunakan format: https://www.google.com/maps/place/@-6.2088,106.8456'}`;
+        } else if (error.errors.coordinates) {
+          errorMsg = `Lokasi tidak bisa diekstrak. ${error.errors.coordinates[0] || 'Coba URL lain atau upload foto dengan GPS data'}`;
+        } else if (error.errors.location_required) {
+          errorMsg = `Untuk mode offline, Anda harus menyediakan:\n${error.errors.location_required.join('\n')}`;
+        }
+      }
+      
+      toastError(errorMsg);
     } finally {
       setSubmitting(false);
     }
@@ -253,25 +266,35 @@ export function TutorRegistrationPage({
     setSubmitting(true);
     try {
       // For step 4 submission, get a fresh reCAPTCHA token
-      // Use the initially verified token or create a new one
       const grecaptcha = (window as any).grecaptcha;
       let tokenToUse = initialCaptchaToken;
 
       // If we're using reCAPTCHA v3 (execute available), get fresh token
       if (grecaptcha && typeof grecaptcha.execute === "function" && recaptchaSiteKey) {
         try {
+          console.log("[TutorRegistration] Attempting to get fresh reCAPTCHA v3 token...");
           tokenToUse = await grecaptcha.execute(recaptchaSiteKey, { action: "submit" });
+          console.log("[TutorRegistration] Fresh reCAPTCHA token obtained:", tokenToUse ? "✓" : "✗");
         } catch (e) {
-          console.warn("Failed to get fresh reCAPTCHA v3 token, using initial token", e);
+          console.warn("[TutorRegistration] Failed to get fresh reCAPTCHA v3 token, using initial token", e);
           // Continue with initial token as fallback
         }
+      } else {
+        console.log("[TutorRegistration] grecaptcha.execute not available, using initial token", {
+          hasGrecaptcha: !!grecaptcha,
+          hasExecute: grecaptcha ? typeof grecaptcha.execute : "n/a",
+          recaptchaSiteKey: recaptchaSiteKey ? "set" : "not set",
+        });
       }
 
       if (!tokenToUse) {
-        toastError("reCAPTCHA belum diverifikasi. Silakan coba lagi dan refresh halaman jika perlu.");
+        console.error("[TutorRegistration] No reCAPTCHA token available");
+        toastError("reCAPTCHA belum diverifikasi. Silakan refresh halaman dan coba lagi.");
         setSubmitting(false);
         return;
       }
+
+      console.log("[TutorRegistration] Submitting step 4 with token");
 
       const formData = new FormData();
       formData.append("cv", cv);
@@ -287,7 +310,14 @@ export function TutorRegistrationPage({
       setProfile(data.data ?? data);
       toastSuccess(t("tutorRegistration.step4Uploaded"));
     } catch (error: any) {
-      toastError(error.message || t("tutorRegistration.step4UploadFailed"));
+      console.error("[TutorRegistration] Step 4 error:", error);
+      
+      // Check if it's a reCAPTCHA error
+      if (error.message?.includes("reCAPTCHA") || error.errors?.recaptcha_token) {
+        toastError("Verifikasi reCAPTCHA gagal. Refresh halaman dan coba lagi dari awal.");
+      } else {
+        toastError(error.message || t("tutorRegistration.step4UploadFailed"));
+      }
     } finally {
       setSubmitting(false);
     }
@@ -453,10 +483,12 @@ export function TutorRegistrationPage({
                   type="url"
                   value={googleMapsUrl}
                   onChange={(e) => setGoogleMapsUrl(e.target.value)}
-                  placeholder={t("tutorRegistration.googleMapsUrlPlaceholder")}
+                  placeholder="https://www.google.com/maps/place/@-6.2088,106.8456,13z"
                   className="w-full border-b border-gray-200 px-0 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-400 transition-colors"
                 />
-                <p className="text-xs text-gray-500 mt-1">{t("tutorRegistration.googleMapsUrlHint")}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Salin link dari Google Maps (bukan alamat biasa). Contoh: https://www.google.com/maps/place/@-6.2088,106.8456
+                </p>
               </div>
 
               <div>
