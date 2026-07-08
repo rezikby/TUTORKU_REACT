@@ -311,7 +311,7 @@ export default function BookingDetailPage({
                         <span className="text-xs text-gray-500">
                           {t("bookingDetail.coordinates", {
                             lat: booking.tutor?.latitude ?? booking.location_latitude,
-                            lng: booking.tutor?.longitude ?? booking.location_longitude,
+                            longitude: booking.tutor?.longitude ?? booking.location_longitude,
                           })}
                         </span>
                         <a

@@ -1071,7 +1071,7 @@ export default function BookingPage(props: any) {
                         {locationLat && locationLng && (
                           <div className="mt-2 p-2 bg-green-50 rounded-lg">
                             <p className="text-xs text-green-700">
-                              ✓ {t("bookingPage.payment.yourLocationValue", { lat: Number(locationLat).toFixed(5), lng: Number(locationLng).toFixed(5) })}
+                              ✓ {t("bookingPage.payment.yourLocationValue", { lat: Number(locationLat).toFixed(5), longitude: Number(locationLng).toFixed(5) })}
                             </p>
                           </div>
                         )}
@@ -1161,7 +1161,7 @@ export default function BookingPage(props: any) {
                     <div>{tutorLocationText}</div>
                     {fullTutor?.latitude && fullTutor?.longitude && (
                       <div className="mt-1 text-xs text-gray-500">
-                        {t("bookingPage.summary.coordinates", { lat: tutor.latitude, lng: tutor.longitude })}
+                        {t("bookingPage.summary.coordinates", { lat: tutor.latitude, longitude: tutor.longitude })}
                       </div>
                     )}
                   </div>
