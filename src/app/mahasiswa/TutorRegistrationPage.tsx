@@ -488,6 +488,13 @@ export function TutorRegistrationPage({
                 </label>
               </div>
 
+              {modeOffline && !googleMapsUrl && (
+                <div className="bg-amber-50 border border-amber-200 rounded p-3">
+                  <p className="text-sm font-medium text-amber-900 mb-2">⚠️ Diperlukan Google Maps URL untuk mode Offline</p>
+                  <p className="text-xs text-amber-800">Untuk menerima booking offline, Anda wajib menambahkan Google Maps URL lokasi Anda di atas. Atau upload foto profil dengan GPS data.</p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">{t("tutorRegistration.profilePhotoLabel")}</label>
                 <input 
@@ -500,8 +507,8 @@ export function TutorRegistrationPage({
 
               <button 
                 onClick={submitStep2} 
-                disabled={submitting} 
-                className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 rounded mt-2"
+                disabled={submitting || (modeOffline && !googleMapsUrl)} 
+                className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded mt-2"
               >
                 {submitting ? t("tutorRegistration.saving") : t("tutorRegistration.saveAndContinue")}
               </button>
