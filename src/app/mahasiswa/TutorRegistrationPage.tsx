@@ -38,9 +38,7 @@ export function TutorRegistrationPage({
   const [bio, setBio] = useState("");
   const [pricePerHour, setPricePerHour] = useState(50000);
   const [experienceYears, setExperienceYears] = useState(1);
-  const [province, setProvince] = useState("");
-  const [city, setCity] = useState("");
-  const [address, setAddress] = useState("");
+  const [googleMapsUrl, setGoogleMapsUrl] = useState("");
   const [levels, setLevels] = useState<string[]>([]);
   const [modeOnline, setModeOnline] = useState(true);
   const [modeOffline, setModeOffline] = useState(false);
@@ -87,7 +85,21 @@ export function TutorRegistrationPage({
     loadOrStart();
   }, []);
 
-  // When user picks a profile photo, upload it immediately to extract EXIF GPS and prefill city/province
+  useEffect(() => {
+    if (!profile) return;
+
+    setHeadline(profile.headline ?? "");
+    setEmail(profile.email ?? "");
+    setBio(profile.bio ?? "");
+    setPricePerHour(profile.price_per_hour ?? 50000);
+    setExperienceYears(profile.experience_years ?? 1);
+    setGoogleMapsUrl(profile.google_maps_url ?? "");
+    setLevels(profile.levels ?? []);
+    setModeOnline(profile.mode_online ?? true);
+    setModeOffline(profile.mode_offline ?? false);
+  }, [profile]);
+
+  // When user picks a profile photo, upload it immediately for profile preview.
   useEffect(() => {
     if (!profilePhoto) return;
 
@@ -99,8 +111,7 @@ export function TutorRegistrationPage({
         const data = await apiFetch("/tutor/registration/photo", { method: "POST", body: fd });
         const prof = data.data ?? data;
         setProfile(prof);
-        if (prof?.city) setCity(prof.city);
-        if (prof?.province) setProvince(prof.province);
+        if (prof?.google_maps_url) setGoogleMapsUrl(prof.google_maps_url);
         toastSuccess(t("tutorRegistration.step2Saved"));
       } catch (e: any) {
         toastError(e.message || t("tutorRegistration.step2SaveFailed"));
@@ -200,9 +211,7 @@ export function TutorRegistrationPage({
       formData.append("bio", bio);
       formData.append("price_per_hour", String(pricePerHour));
       formData.append("experience_years", String(experienceYears));
-      formData.append("province", province);
-      formData.append("city", city);
-      formData.append("address", address);
+      formData.append("google_maps_url", googleMapsUrl);
       levels.forEach((l) => formData.append("levels[]", l));
       formData.append("mode_online", modeOnline ? "1" : "0");
       formData.append("mode_offline", modeOffline ? "1" : "0");
@@ -422,23 +431,16 @@ export function TutorRegistrationPage({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">{t("tutorRegistration.provinceLabel")}</label>
-                  <input 
-                    value={province} 
-                    onChange={(e) => setProvince(e.target.value)} 
-                    className="w-full border-b border-gray-200 px-0 py-1.5 text-sm text-gray-900 focus:outline-none focus:border-blue-400 transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">{t("tutorRegistration.cityLabel")}</label>
-                  <input 
-                    value={city} 
-                    onChange={(e) => setCity(e.target.value)} 
-                    className="w-full border-b border-gray-200 px-0 py-1.5 text-sm text-gray-900 focus:outline-none focus:border-blue-400 transition-colors"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">{t("tutorRegistration.googleMapsUrlLabel")}</label>
+                <input
+                  type="url"
+                  value={googleMapsUrl}
+                  onChange={(e) => setGoogleMapsUrl(e.target.value)}
+                  placeholder={t("tutorRegistration.googleMapsUrlPlaceholder")}
+                  className="w-full border-b border-gray-200 px-0 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-400 transition-colors"
+                />
+                <p className="text-xs text-gray-500 mt-1">{t("tutorRegistration.googleMapsUrlHint")}</p>
               </div>
 
               <div>

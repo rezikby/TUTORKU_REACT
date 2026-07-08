@@ -719,8 +719,11 @@ export default function BookingPage(props: any) {
   const location = fullTutor?.city ?? fullTutor?.province ?? fullTutor?.location ?? t("bookingPage.summary.online");
   const experience = tutor?.experience_label ?? (tutor?.experience_years ? t("bookingPage.summary.experienceYears", { years: tutor.experience_years }) : "—");
   const level = tutor?.level_label ?? tutor?.level ?? t("bookingPage.summary.allLevels");
-  const formatCurrency = (value: number) => value.toLocaleString("id-ID");
-  const price = formatCurrency(Number(tutor?.price_per_hour ?? tutor?.price ?? 0));
+  const formatCurrency = (value: number) =>
+    value.toLocaleString("id-ID", { maximumFractionDigits: 0 });
+
+  const formatNominal = (value: number) => formatCurrency(roundNominal(value));
+  const price = formatNominal(Number(tutor?.price_per_hour ?? tutor?.price ?? 0));
 
   if (!tutor) {
     return (

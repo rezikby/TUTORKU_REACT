@@ -114,7 +114,7 @@ export default function JenjangPage({ apiFetch, user, navigate, onUpdateUser }: 
           <img 
             src="/img/logo1.png" 
             alt="Edukasi" 
-            className="w-20 h-20 object-contain mb-4"
+            className="w-40 h-40 object-contain mb-4"
           />
           <h1 className="text-2xl font-bold text-gray-900">
             Pilih Jenjang Pendidikan
