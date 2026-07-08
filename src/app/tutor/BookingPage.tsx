@@ -382,7 +382,12 @@ export default function BookingPage(props: any) {
     return Number((earthRadiusKm * c).toFixed(1));
   }, [effectiveMode, locationLat, locationLng, tutorCoordinates]);
 
-  const travelCost = travelDistanceKm ? Math.round(travelDistanceKm * 10000) : 0;
+  const roundNominal = (value: number, unit = 1000) =>
+    Math.round(value / unit) * unit;
+
+  const travelCost = travelDistanceKm
+    ? roundNominal(Math.round(travelDistanceKm * 10000))
+    : 0;
 
   const handleTimeSelect = (time: string) => {
     if (selectedStartTime && selectedEndTime && isTimeInSelectedRange(time)) {
@@ -509,8 +514,13 @@ export default function BookingPage(props: any) {
 
   const activeTutor = fullTutor ?? tutor;
   const sessionPricePerHour = Number(activeTutor?.price_per_hour ?? activeTutor?.price ?? 0);
-  const sessionCost = Math.round((sessionPricePerHour * getDurationInMinutes()) / 60);
-  const bookingTotalPrice = effectiveMode === 'offline' && travelDistanceKm !== null ? sessionCost + travelCost : sessionCost;
+  const sessionCost = roundNominal(
+    Math.round((sessionPricePerHour * getDurationInMinutes()) / 60),
+  );
+  const bookingTotalPrice =
+    effectiveMode === 'offline' && travelDistanceKm !== null
+      ? sessionCost + travelCost
+      : sessionCost;
 
   const getDurationInHours = () => {
     const minutes = getDurationInMinutes();
@@ -709,7 +719,8 @@ export default function BookingPage(props: any) {
   const location = fullTutor?.city ?? fullTutor?.province ?? fullTutor?.location ?? t("bookingPage.summary.online");
   const experience = tutor?.experience_label ?? (tutor?.experience_years ? t("bookingPage.summary.experienceYears", { years: tutor.experience_years }) : "—");
   const level = tutor?.level_label ?? tutor?.level ?? t("bookingPage.summary.allLevels");
-  const price = (tutor?.price_per_hour ?? tutor?.price ?? 0).toLocaleString("id-ID");
+  const formatCurrency = (value: number) => value.toLocaleString("id-ID");
+  const price = formatCurrency(Number(tutor?.price_per_hour ?? tutor?.price ?? 0));
 
   if (!tutor) {
     return (
@@ -1119,7 +1130,7 @@ export default function BookingPage(props: any) {
                     </div>
                     <div className="flex justify-between">
                       <span>{t("bookingPage.summary.travelCost")}</span>
-                      <span className="font-medium text-gray-900">Rp {travelCost.toLocaleString("id-ID")}</span>
+                      <span className="font-medium text-gray-900">Rp {formatCurrency(travelCost)}</span>
                     </div>
                   </div>
                 )}
@@ -1127,7 +1138,7 @@ export default function BookingPage(props: any) {
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600 text-sm">{t("bookingPage.summary.total")}</span>
                   <span className="font-bold text-blue-600 text-lg">
-                    Rp {bookingTotalPrice.toLocaleString("id-ID")}
+                    Rp {formatCurrency(bookingTotalPrice)}
                   </span>
                 </div>
                 <div className="text-xs text-gray-400 mt-1">Rp {price} {t("bookingPage.summary.perHour")}</div>
