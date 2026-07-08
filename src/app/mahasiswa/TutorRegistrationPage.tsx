@@ -252,8 +252,24 @@ export function TutorRegistrationPage({
 
     setSubmitting(true);
     try {
-      if (!initialCaptchaToken) {
-        toastError("reCAPTCHA belum diverifikasi. Silakan coba lagi.");
+      // For step 4 submission, get a fresh reCAPTCHA token
+      // Use the initially verified token or create a new one
+      const grecaptcha = (window as any).grecaptcha;
+      let tokenToUse = initialCaptchaToken;
+
+      // If we're using reCAPTCHA v3 (execute available), get fresh token
+      if (grecaptcha && typeof grecaptcha.execute === "function" && recaptchaSiteKey) {
+        try {
+          tokenToUse = await grecaptcha.execute(recaptchaSiteKey, { action: "submit" });
+        } catch (e) {
+          console.warn("Failed to get fresh reCAPTCHA v3 token, using initial token", e);
+          // Continue with initial token as fallback
+        }
+      }
+
+      if (!tokenToUse) {
+        toastError("reCAPTCHA belum diverifikasi. Silakan coba lagi dan refresh halaman jika perlu.");
+        setSubmitting(false);
         return;
       }
 
@@ -265,7 +281,7 @@ export function TutorRegistrationPage({
       formData.append("bank_name", bankName);
       formData.append("bank_account_number", bankAccountNumber);
       formData.append("bank_account_holder", bankAccountHolder);
-      formData.append("recaptcha_token", initialCaptchaToken);
+      formData.append("recaptcha_token", tokenToUse);
 
       const data = await apiFetch("/tutor/registration/step-4", { method: "POST", body: formData });
       setProfile(data.data ?? data);
